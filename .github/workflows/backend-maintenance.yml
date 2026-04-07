@@ -1,0 +1,45 @@
+name: backend-maintenance
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '15 2 * * 0'
+
+jobs:
+  refresh-token-cleanup:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      DATABASE_URL: ${{ secrets.BACKEND_DATABASE_URL }}
+      JWT_SECRET: ${{ secrets.BACKEND_JWT_SECRET }}
+      JWT_REFRESH_SECRET: ${{ secrets.BACKEND_JWT_REFRESH_SECRET }}
+      AUDIT_SIGNING_SALT: ${{ secrets.BACKEND_AUDIT_SIGNING_SALT }}
+      REFRESH_REVOKED_RETENTION_DAYS: ${{ vars.REFRESH_REVOKED_RETENTION_DAYS || '30' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Ensure required secrets exist
+        run: |
+          test -n "$DATABASE_URL"
+          test -n "$JWT_SECRET"
+          test -n "$JWT_REFRESH_SECRET"
+          test -n "$AUDIT_SIGNING_SALT"
+
+      - name: Install
+        run: npm ci
+
+      - name: Prisma Generate
+        run: npm run prisma:generate
+
+      - name: Cleanup Refresh Tokens
+        run: npm run tokens:cleanup

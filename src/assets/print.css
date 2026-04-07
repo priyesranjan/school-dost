@@ -1,0 +1,44 @@
+/* ────────────────────────────────────────────────────
+   Print-specific stylesheet for ID Cards & Certificates
+   Applied globally via @media print rules
+   ──────────────────────────────────────────────────── */
+
+@media print {
+  /* Reset the body for paper output */
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Remove all scrollbar constraints */
+  html, body, #app {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* Force correct page margins for A4 */
+  @page {
+    size: A4;
+    margin: 12mm 10mm;
+  }
+
+  /* Ensure ID card grids break cleanly */
+  .grid {
+    page-break-inside: avoid;
+  }
+
+  /* Each ID card should not split across pages */
+  .grid > div {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  /* Certificate full page layout */
+  .border-4 {
+    page-break-after: always;
+    page-break-inside: avoid;
+  }
+}

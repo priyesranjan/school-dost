@@ -1,0 +1,356 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserAppRole {
+  admin
+  accountant
+  teacher
+  receptionist
+  student
+  parent
+  hod
+}
+
+enum UserStatus {
+  active
+  inactive
+}
+
+enum StudentStatus {
+  active
+  inactive
+}
+
+enum AudienceType {
+  all
+  class
+}
+
+enum NoticeStatus {
+  draft
+  approved
+  scheduled
+  published
+  rejected
+}
+
+enum DayOfWeek {
+  Monday
+  Tuesday
+  Wednesday
+  Thursday
+  Friday
+  Saturday
+}
+
+enum PaymentStatus {
+  paid
+  partial
+  unpaid
+}
+
+enum PaymentMethod {
+  cash
+  upi
+  bank_transfer
+  cheque
+}
+
+enum AttendanceStatus {
+  present
+  absent
+  late
+}
+
+enum CertificateType {
+  tc
+  character
+}
+
+enum CertificateStatus {
+  issued
+  draft
+}
+
+enum OtpPurpose {
+  login
+}
+
+model User {
+  id           BigInt      @id @default(autoincrement())
+  name         String
+  email        String      @unique
+  role         UserAppRole
+  status       UserStatus  @default(active)
+  phone        String?
+  passwordHash String?
+  lastLoginAt  DateTime?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  noticesCreated Notice[] @relation("NoticeCreatedBy")
+  noticesApproved Notice[] @relation("NoticeApprovedBy")
+  noticesRejected Notice[] @relation("NoticeRejectedBy")
+
+  @@index([role])
+  @@index([status])
+}
+
+model Student {
+  id            BigInt        @id @default(autoincrement())
+  name          String
+  rollNumber    String
+  className     String
+  section       String
+  parentName    String
+  phone         String
+  email         String?
+  address       String?
+  admissionDate DateTime
+  status        StudentStatus @default(active)
+  profilePhotoUrl String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  feePayments      FeePayment[]
+  attendanceRecords AttendanceRecord[]
+  certificates     Certificate[]
+  examResults      ExamResult[]
+
+  @@unique([rollNumber, className, section])
+  @@index([className, section])
+  @@index([status])
+}
+
+model FeeStructure {
+  id           BigInt     @id @default(autoincrement())
+  name         String
+  className    String
+  amount       Decimal    @db.Decimal(12, 2)
+  dueDate      DateTime
+  academicYear String
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  feePayments  FeePayment[]
+
+  @@index([className])
+  @@index([academicYear])
+}
+
+model FeePayment {
+  id            BigInt        @id @default(autoincrement())
+  studentId     BigInt
+  feeStructureId BigInt?
+  totalAmount   Decimal       @db.Decimal(12, 2)
+  paidAmount    Decimal       @db.Decimal(12, 2)
+  dueAmount     Decimal       @db.Decimal(12, 2)
+  status        PaymentStatus
+  paymentDate   DateTime?
+  paymentMethod PaymentMethod?
+  receiptNumber String?       @unique
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  student       Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  feeStructure  FeeStructure? @relation(fields: [feeStructureId], references: [id], onDelete: SetNull)
+
+  @@index([studentId])
+  @@index([status])
+  @@index([paymentDate])
+}
+
+model AttendanceRecord {
+  id         BigInt           @id @default(autoincrement())
+  studentId  BigInt
+  date       DateTime
+  status     AttendanceStatus
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  student    Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, date])
+  @@index([date])
+}
+
+model Notice {
+  id              BigInt       @id @default(autoincrement())
+  title           String
+  message         String
+  audience        AudienceType
+  className       String?
+  status          NoticeStatus @default(draft)
+  createdById     BigInt?
+  approvedById    BigInt?
+  rejectedById    BigInt?
+  reviewComment   String?
+  revisionNo      Int          @default(1)
+  approvedTitle   String?
+  approvedMessage String?
+  publishAt       DateTime?
+  publishedAt     DateTime?
+  sendSmsOnPublish Boolean     @default(false)
+  smsSent         Boolean      @default(false)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  createdBy       User?        @relation("NoticeCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  approvedBy      User?        @relation("NoticeApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  rejectedBy      User?        @relation("NoticeRejectedBy", fields: [rejectedById], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([audience, className])
+}
+
+model TimetableEntry {
+  id         BigInt    @id @default(autoincrement())
+  className  String
+  day        DayOfWeek
+  period     String
+  subject    String
+  teacher    String
+  startTime  String
+  endTime    String
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@unique([className, day, period])
+  @@index([className, day])
+}
+
+model Certificate {
+  id            BigInt            @id @default(autoincrement())
+  certificateNo String            @unique
+  studentId     BigInt
+  type          CertificateType
+  issueDate     DateTime
+  reason        String?
+  conduct       String?
+  issuedBy      String
+  status        CertificateStatus @default(draft)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  student       Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
+  @@index([type])
+}
+
+model AuditLog {
+  id               BigInt    @id @default(autoincrement())
+  action           String
+  module           String
+  actorName        String
+  actorRole        String
+  target           String
+  metadata         String
+  auditNonce       BigInt?
+  prevHash         String
+  hash             String
+  signatureVersion Int
+  createdAt        DateTime  @default(now())
+
+  @@index([module])
+  @@index([createdAt])
+  @@index([auditNonce])
+}
+
+model OtpSession {
+  id                BigInt     @id @default(autoincrement())
+  sessionId         String     @unique
+  purpose           OtpPurpose @default(login)
+  phone             String
+  destinationMasked String
+  expiresAt         DateTime
+  attempts          Int        @default(0)
+  otpCode           String?
+  verifiedAt        DateTime?
+  createdAt         DateTime   @default(now())
+
+  @@index([phone])
+  @@index([expiresAt])
+}
+
+model RefreshToken {
+  id        BigInt    @id @default(autoincrement())
+  tokenHash String    @unique
+  userSub   String
+  name      String
+  role      String
+  email     String
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userSub, expiresAt])
+}
+
+enum CalendarEventType {
+  holiday
+  exam
+  event
+  pta
+  sports
+}
+
+model CalendarEvent {
+  id          BigInt            @id @default(autoincrement())
+  title       String
+  date        DateTime
+  endDate     DateTime?
+  type        CalendarEventType
+  description String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([date])
+  @@index([type])
+}
+
+model Exam {
+  id           BigInt       @id @default(autoincrement())
+  name         String
+  className    String
+  subject      String
+  date         DateTime
+  maxMarks     Int
+  academicYear String
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  results      ExamResult[]
+
+  @@index([className])
+  @@index([academicYear])
+}
+
+model ExamResult {
+  id            BigInt  @id @default(autoincrement())
+  examId        BigInt
+  studentId     BigInt
+  marksObtained Int
+  grade         String
+  remarks       String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  exam    Exam    @relation(fields: [examId], references: [id], onDelete: Cascade)
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([examId, studentId])
+  @@index([examId])
+  @@index([studentId])
+}
