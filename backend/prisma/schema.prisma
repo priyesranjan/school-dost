@@ -12,6 +12,26 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum TenantStatus {
+  active
+  trial
+  suspended
+  cancelled
+}
+
+enum TenantType {
+  school
+  college
+  coaching
+}
+
+enum SubscriptionPlan {
+  basic
+  standard
+  premium
+  enterprise
+}
+
 enum UserAppRole {
   admin
   accountant
@@ -99,72 +119,183 @@ model User {
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
-  noticesCreated Notice[] @relation("NoticeCreatedBy")
-  noticesApproved Notice[] @relation("NoticeApprovedBy")
-  noticesRejected Notice[] @relation("NoticeRejectedBy")
+  noticesCreated  Notice[]  @relation("NoticeCreatedBy")
+  noticesApproved Notice[]  @relation("NoticeApprovedBy")
+  noticesRejected Notice[]  @relation("NoticeRejectedBy")
+  children        Student[] @relation("ParentToStudent")
 
   @@index([role])
   @@index([status])
 }
 
 model Student {
-  id            BigInt        @id @default(autoincrement())
-  name          String
-  rollNumber    String
-  className     String
-  section       String
-  parentName    String
-  phone         String
-  email         String?
-  address       String?
-  admissionDate DateTime
-  status        StudentStatus @default(active)
+  id              BigInt        @id @default(autoincrement())
+  name            String
+  firstName       String?
+  middleName      String?
+  lastName        String?
+  rollNumber      String
+  className       String
+  section         String
+  status          StudentStatus @default(active)
+  dateOfBirth     DateTime?
+  gender          String?
+  bloodGroup      String?
+  nationality     String?       @default("Indian")
+  religion        String?
+  category        String?
+  caste           String?
+  motherTongue    String?
+  aadharNumber    String?
+  
+  enrollmentNo    String?       @unique
+  feeNo           String?
+  stream          String?
+  feeGroup        String?
+  academicYear    String?
+  admissionDate   DateTime
+  dateOfJoining   DateTime?
+  
+  email           String?
+  phone           String?
+  
+  // Parent / Father Details
+  parentName      String
+  fatherName      String?
+  fatherOccupation String?
+  fatherQualification String?
+  fatherPhone     String?
+  fatherEmail     String?
+  fatherAadhar    String?
+  fatherAnnualIncome String?
+  
+  // Mother Details
+  motherName      String?
+  motherOccupation String?
+  motherQualification String?
+  motherPhone     String?
+  motherEmail     String?
+  motherAadhar    String?
+  
+  // Primary Guardian (legacy fields often mapped to father or separate)
+  guardianName    String?
+  guardianRelation String?
+  guardianPhone   String?
+  guardianOccupation String?
+  guardianAddress String?
+  guardianContacts Json?         // For multiple guardians
+  
+  // Address Details
+  address         String?       @map("address") // legacy mapping
+  currentAddress  String?
+  currentCity     String?
+  currentState    String?
+  currentPincode  String?
+  currentCountry  String?       @default("India")
+  
+  permanentAddress String?
+  permanentCity    String?
+  permanentState   String?
+  permanentPincode String?
+  permanentCountry String?       @default("India")
+  sameAsCurrent    Boolean       @default(false)
+  
+  // Academic & Previous School
+  previousSchool  String?
+  previousClass   String?
+  tcNumber        String?
+  
+  // Transport & Medical
+  transportMode   String?
+  busRoute        String?
+  hostelName      String?
+  medicalConditions String?
+  allergies       String?
+  emergencyContactName String?
+  emergencyContactPhone String?
+  emergencyRelation String?
+  
+  // Financial & More
+  bankName        String?
+  bankAccountNo   String?
+  ifscCode        String?
+  scholarshipName String?
+  scholarshipAmount Decimal?     @db.Decimal(12, 2)
+  additionalDetails Json?        // For custom fields
+  notes           String?       @db.Text
+  
   profilePhotoUrl String?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  signatureUrl    String?
+  
+  parentUserId    BigInt?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 
-  feePayments      FeePayment[]
+  parentUser        User?              @relation("ParentToStudent", fields: [parentUserId], references: [id], onDelete: SetNull)
+  feePayments       FeePayment[]
   attendanceRecords AttendanceRecord[]
-  certificates     Certificate[]
-  examResults      ExamResult[]
+  certificates      Certificate[]
+  examResults       ExamResult[]
 
   @@unique([rollNumber, className, section])
   @@index([className, section])
   @@index([status])
+  @@index([parentUserId])
+  @@index([enrollmentNo])
 }
 
+model StaffMember {
+  id              BigInt   @id @default(autoincrement())
+  name            String
+  role            String   // teacher, admin, principal, staff
+  department      String
+  phone           String
+  email           String?
+  joinDate        DateTime
+  status          String   @default("active") // active, on_leave, inactive
+  address         String?
+  profilePhotoUrl String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([role])
+  @@index([department])
+  @@index([status])
+}
+
+
 model FeeStructure {
-  id           BigInt     @id @default(autoincrement())
+  id           BigInt   @id @default(autoincrement())
   name         String
   className    String
-  amount       Decimal    @db.Decimal(12, 2)
+  amount       Decimal  @db.Decimal(12, 2)
   dueDate      DateTime
   academicYear String
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  feePayments  FeePayment[]
+  feePayments FeePayment[]
 
   @@index([className])
   @@index([academicYear])
 }
 
 model FeePayment {
-  id            BigInt        @id @default(autoincrement())
-  studentId     BigInt
+  id             BigInt         @id @default(autoincrement())
+  studentId      BigInt
   feeStructureId BigInt?
-  totalAmount   Decimal       @db.Decimal(12, 2)
-  paidAmount    Decimal       @db.Decimal(12, 2)
-  dueAmount     Decimal       @db.Decimal(12, 2)
-  status        PaymentStatus
-  paymentDate   DateTime?
-  paymentMethod PaymentMethod?
-  receiptNumber String?       @unique
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  totalAmount    Decimal        @db.Decimal(12, 2)
+  paidAmount     Decimal        @db.Decimal(12, 2)
+  dueAmount      Decimal        @db.Decimal(12, 2)
+  status         PaymentStatus
+  paymentDate    DateTime?
+  paymentMethod  PaymentMethod?
+  receiptNumber  String?        @unique
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 
-  student       Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  feeStructure  FeeStructure? @relation(fields: [feeStructureId], references: [id], onDelete: SetNull)
+  student      Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  feeStructure FeeStructure? @relation(fields: [feeStructureId], references: [id], onDelete: SetNull)
 
   @@index([studentId])
   @@index([status])
@@ -172,59 +303,59 @@ model FeePayment {
 }
 
 model AttendanceRecord {
-  id         BigInt           @id @default(autoincrement())
-  studentId  BigInt
-  date       DateTime
-  status     AttendanceStatus
-  createdAt  DateTime         @default(now())
-  updatedAt  DateTime         @updatedAt
+  id        BigInt           @id @default(autoincrement())
+  studentId BigInt
+  date      DateTime
+  status    AttendanceStatus
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
 
-  student    Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@unique([studentId, date])
   @@index([date])
 }
 
 model Notice {
-  id              BigInt       @id @default(autoincrement())
-  title           String
-  message         String
-  audience        AudienceType
-  className       String?
-  status          NoticeStatus @default(draft)
-  createdById     BigInt?
-  approvedById    BigInt?
-  rejectedById    BigInt?
-  reviewComment   String?
-  revisionNo      Int          @default(1)
-  approvedTitle   String?
-  approvedMessage String?
-  publishAt       DateTime?
-  publishedAt     DateTime?
-  sendSmsOnPublish Boolean     @default(false)
-  smsSent         Boolean      @default(false)
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
+  id               BigInt       @id @default(autoincrement())
+  title            String
+  message          String
+  audience         AudienceType
+  className        String?
+  status           NoticeStatus @default(draft)
+  createdById      BigInt?
+  approvedById     BigInt?
+  rejectedById     BigInt?
+  reviewComment    String?
+  revisionNo       Int          @default(1)
+  approvedTitle    String?
+  approvedMessage  String?
+  publishAt        DateTime?
+  publishedAt      DateTime?
+  sendSmsOnPublish Boolean      @default(false)
+  smsSent          Boolean      @default(false)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
 
-  createdBy       User?        @relation("NoticeCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  approvedBy      User?        @relation("NoticeApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
-  rejectedBy      User?        @relation("NoticeRejectedBy", fields: [rejectedById], references: [id], onDelete: SetNull)
+  createdBy  User? @relation("NoticeCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  approvedBy User? @relation("NoticeApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  rejectedBy User? @relation("NoticeRejectedBy", fields: [rejectedById], references: [id], onDelete: SetNull)
 
   @@index([status])
   @@index([audience, className])
 }
 
 model TimetableEntry {
-  id         BigInt    @id @default(autoincrement())
-  className  String
-  day        DayOfWeek
-  period     String
-  subject    String
-  teacher    String
-  startTime  String
-  endTime    String
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  id        BigInt    @id @default(autoincrement())
+  className String
+  day       DayOfWeek
+  period    String
+  subject   String
+  teacher   String
+  startTime String
+  endTime   String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   @@unique([className, day, period])
   @@index([className, day])
@@ -243,14 +374,14 @@ model Certificate {
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
 
-  student       Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@index([studentId])
   @@index([type])
 }
 
 model AuditLog {
-  id               BigInt    @id @default(autoincrement())
+  id               BigInt   @id @default(autoincrement())
   action           String
   module           String
   actorName        String
@@ -261,7 +392,7 @@ model AuditLog {
   prevHash         String
   hash             String
   signatureVersion Int
-  createdAt        DateTime  @default(now())
+  createdAt        DateTime @default(now())
 
   @@index([module])
   @@index([createdAt])
@@ -319,26 +450,40 @@ model CalendarEvent {
   @@index([date])
   @@index([type])
 }
+model Backup {
+  id        BigInt   @id @default(autoincrement())
+  tenantId  String
+  fileName  String
+  fileSize  BigInt
+  status    String   @default("pending") // pending, success, failed
+  error     String?
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([createdAt])
+}
 
 model Exam {
-  id           BigInt       @id @default(autoincrement())
+  id           BigInt   @id @default(autoincrement())
   name         String
   className    String
   subject      String
   date         DateTime
   maxMarks     Int
   academicYear String
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  results      ExamResult[]
+  results ExamResult[]
 
   @@index([className])
   @@index([academicYear])
 }
 
 model ExamResult {
-  id            BigInt  @id @default(autoincrement())
+  id            BigInt   @id @default(autoincrement())
   examId        BigInt
   studentId     BigInt
   marksObtained Int
@@ -353,4 +498,77 @@ model ExamResult {
   @@unique([examId, studentId])
   @@index([examId])
   @@index([studentId])
+}
+
+// ── Platform Tables (Merged) ───────────────────────────────
+
+model Tenant {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  name    String
+  slug    String @unique
+  type    TenantType
+  board   String?
+  logoUrl String?
+
+  city    String
+  state   String
+  country String @default("India")
+  address String?
+  pincode String?
+  phone   String?
+
+  dbName   String @unique
+  dbHost   String @default("localhost")
+  dbPort   Int    @default(5432)
+
+  plan               SubscriptionPlan @default(basic)
+  status             TenantStatus     @default(trial)
+  trialEndsAt        DateTime?
+  subscriptionStart  DateTime?
+  subscriptionEnd    DateTime?
+  monthlyFeeInr      Decimal?         @db.Decimal(10, 2)
+
+  adminName  String
+  adminEmail String
+  adminPhone String?
+
+  totalStudents Int @default(0)
+  totalStaff    Int @default(0)
+
+  institutionCode String @default("001")
+
+  auditLogs TenantAuditLog[]
+  backups   Backup[]
+
+  @@index([status])
+  @@index([slug])
+}
+
+model TenantAuditLog {
+  id         BigInt   @id @default(autoincrement())
+  createdAt  DateTime @default(now())
+  tenantId   String
+  action     String
+  performedBy String
+  details    Json?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([createdAt])
+}
+
+model SuperAdmin {
+  id           BigInt   @id @default(autoincrement())
+  createdAt    DateTime @default(now())
+  name         String
+  email        String   @unique
+  phone        String?  @unique
+  passwordHash String
+  lastLoginAt  DateTime?
+  isActive     Boolean  @default(true)
+  isRoot       Boolean  @default(false)
 }

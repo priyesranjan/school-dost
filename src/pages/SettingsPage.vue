@@ -8,7 +8,9 @@
         @click="activeTab = tab.key"
         :class="[
           'flex-1 rounded-md px-4 py-2 text-sm font-medium transition-colors',
-          activeTab === tab.key ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200',
+          activeTab === tab.key
+            ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm'
+            : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200',
         ]"
       >
         {{ tab.label }}
@@ -25,26 +27,75 @@
             <AppInput v-model="schoolForm.school_phone" label="Phone" type="tel" />
             <AppInput v-model="schoolForm.school_email" label="Email" type="email" />
             <AppInput v-model="schoolForm.academic_year" label="Academic Year" placeholder="2025-26" />
+            <div class="space-y-1">
+              <AppInput
+                v-model="schoolForm.institution_code"
+                label="Institution Code (3 digits)"
+                placeholder="001"
+                maxlength="3"
+              />
+              <p class="text-[10px] text-gray-400 pl-1">
+                Used in enrollment numbers: <strong class="text-indigo-500">{{ enrollmentPreview }}</strong>
+              </p>
+            </div>
           </div>
           <AppInput v-model="schoolForm.school_address" label="Address" type="textarea" :rows="2" />
 
           <div class="rounded-lg border border-gray-200 dark:border-gray-700 p-4 space-y-3">
             <div class="flex items-center justify-between">
               <p class="text-sm font-semibold text-gray-900 dark:text-white">Ops SLA Policy</p>
-              <span class="text-xs text-gray-500 dark:text-gray-400">Last updated: {{ new Date(schoolForm.sla_policy_updated_at).toLocaleString() }}</span>
+              <span class="text-xs text-gray-500 dark:text-gray-400"
+                >Last updated: {{ new Date(schoolForm.sla_policy_updated_at).toLocaleString() }}</span
+              >
             </div>
-            <p v-if="!canManageSlaPolicy" class="text-xs text-amber-600 dark:text-amber-300">Only admin can modify SLA policy. Values shown are read-only.</p>
+            <p v-if="!canManageSlaPolicy" class="text-xs text-amber-600 dark:text-amber-300">
+              Only admin can modify SLA policy. Values shown are read-only.
+            </p>
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <AppInput v-model="schoolForm.sla_critical_minutes" type="number" label="Critical SLA (minutes)" :disabled="!canManageSlaPolicy" />
-              <AppInput v-model="schoolForm.sla_warning_minutes" type="number" label="Warning SLA (minutes)" :disabled="!canManageSlaPolicy" />
-              <AppInput v-model="schoolForm.sla_info_minutes" type="number" label="Info SLA (minutes)" :disabled="!canManageSlaPolicy" />
-              <AppInput v-model="schoolForm.sla_policy_version" label="Policy Version" placeholder="v1" :disabled="!canManageSlaPolicy" />
+              <AppInput
+                v-model="schoolForm.sla_critical_minutes"
+                type="number"
+                label="Critical SLA (minutes)"
+                :disabled="!canManageSlaPolicy"
+              />
+              <AppInput
+                v-model="schoolForm.sla_warning_minutes"
+                type="number"
+                label="Warning SLA (minutes)"
+                :disabled="!canManageSlaPolicy"
+              />
+              <AppInput
+                v-model="schoolForm.sla_info_minutes"
+                type="number"
+                label="Info SLA (minutes)"
+                :disabled="!canManageSlaPolicy"
+              />
+              <AppInput
+                v-model="schoolForm.sla_policy_version"
+                label="Policy Version"
+                placeholder="v1"
+                :disabled="!canManageSlaPolicy"
+              />
             </div>
             <div class="flex flex-wrap items-center gap-2">
               <span class="text-xs text-gray-500 dark:text-gray-400">Presets:</span>
-              <AppButton size="sm" variant="secondary" :disabled="!canManageSlaPolicy" @click="applySlaPreset('strict')">Strict (10/30/120)</AppButton>
-              <AppButton size="sm" variant="secondary" :disabled="!canManageSlaPolicy" @click="applySlaPreset('standard')">Standard (15/60/240)</AppButton>
-              <AppButton size="sm" variant="secondary" :disabled="!canManageSlaPolicy" @click="applySlaPreset('relaxed')">Relaxed (30/120/480)</AppButton>
+              <AppButton size="sm" variant="secondary" :disabled="!canManageSlaPolicy" @click="applySlaPreset('strict')"
+                >Strict (10/30/120)</AppButton
+              >
+              <AppButton
+                size="sm"
+                variant="secondary"
+                :disabled="!canManageSlaPolicy"
+                @click="applySlaPreset('standard')"
+                >Standard (15/60/240)</AppButton
+              >
+              <AppButton
+                size="sm"
+                variant="secondary"
+                :disabled="!canManageSlaPolicy"
+                @click="applySlaPreset('relaxed')"
+                >Relaxed (30/120/480)</AppButton
+              >
             </div>
           </div>
 
@@ -55,7 +106,86 @@
       </AppCard>
     </template>
 
-    <!-- SMS Settings -->
+    <!-- Executive Branding -->
+    <template v-if="activeTab === 'branding'">
+      <AppCard title="Executive Identity & Branding">
+        <div class="space-y-8 py-4">
+          <div class="flex flex-col gap-6 lg:flex-row lg:items-center">
+            <div class="space-y-2 lg:w-1/2">
+              <h3 class="text-lg font-black tracking-tight text-gray-900 dark:text-white">Primary Identity Color</h3>
+              <p class="text-sm text-gray-500 dark:text-gray-400">
+                Define the primary accent and brand identity for your entire institution. All dashboards, charts, and
+                interactions will align with this selection.
+              </p>
+            </div>
+            <div
+              class="flex flex-1 items-center gap-6 rounded-3xl border border-gray-100 bg-gray-50/50 p-6 dark:border-gray-700 dark:bg-gray-800/50"
+            >
+              <div
+                class="h-16 w-16 overflow-hidden rounded-2xl shadow-xl ring-4 ring-white dark:ring-gray-700"
+                :style="{ backgroundColor: schoolForm.brand_color }"
+              ></div>
+              <div class="flex-1">
+                <input
+                  type="color"
+                  v-model="schoolForm.brand_color"
+                  class="h-10 w-full cursor-pointer rounded-xl bg-white p-1 shadow-sm border border-gray-100 dark:bg-gray-700 dark:border-gray-600"
+                />
+                <div class="mt-2 flex items-center justify-between">
+                  <span class="text-xs font-black uppercase tracking-widest text-gray-400">{{
+                    schoolForm.brand_color
+                  }}</span>
+                  <button
+                    @click="schoolForm.brand_color = '#4f46e5'"
+                    class="text-[10px] font-bold text-primary-600 uppercase hover:underline"
+                  >
+                    Reset to Default
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <button
+              v-for="preset in brandPresets"
+              :key="preset.color"
+              @click="schoolForm.brand_color = preset.color"
+              :class="[
+                'flex flex-col items-center gap-2 rounded-2xl border p-4 transition-all hover:scale-105',
+                schoolForm.brand_color === preset.color
+                  ? 'border-primary-500 bg-primary-50/50 shadow-lg dark:bg-primary-900/20'
+                  : 'border-gray-100 bg-white dark:border-gray-700 dark:bg-gray-800',
+              ]"
+            >
+              <div class="h-8 w-8 rounded-full shadow-inner" :style="{ backgroundColor: preset.color }"></div>
+              <span class="text-[10px] font-black uppercase tracking-tighter text-gray-500">{{ preset.name }}</span>
+            </button>
+          </div>
+
+          <div class="flex justify-end pt-4 border-t border-gray-100 dark:border-gray-700">
+            <AppButton @click="saveSchoolInfo">Apply Branding</AppButton>
+          </div>
+        </div>
+      </AppCard>
+
+      <AppCard title="Design System Preview" class="overflow-hidden">
+        <div class="flex flex-wrap items-center gap-4 py-4">
+          <AppButton>Primary Button</AppButton>
+          <AppButton variant="secondary">Secondary View</AppButton>
+          <div
+            class="h-10 w-32 rounded-xl bg-primary-500 shadow-lg shadow-primary-500/30 flex items-center justify-center text-white text-[10px] font-black uppercase tracking-widest"
+          >
+            Accent Area
+          </div>
+          <div
+            class="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-50 text-primary-600 font-bold dark:bg-primary-900/20"
+          >
+            A
+          </div>
+        </div>
+      </AppCard>
+    </template>
     <template v-if="activeTab === 'sms'">
       <AppCard title="SMS Configuration">
         <form @submit.prevent="saveSmsSettings" class="space-y-4">
@@ -120,7 +250,11 @@
                   <option value="api">API (2Factor)</option>
                 </AppInput>
                 <AppInput v-model="smsForm.twofactor_api_key" label="2Factor API Key" placeholder="Enter 2Factor key" />
-                <AppInput v-model="smsForm.twofactor_template_login" label="Login OTP Template" placeholder="Your OTP is {{otp}}" />
+                <AppInput
+                  v-model="smsForm.twofactor_template_login"
+                  label="Login OTP Template"
+                  placeholder="Your OTP is {{otp}}"
+                />
               </div>
             </div>
 
@@ -155,7 +289,11 @@
                   <option value="api">API (Signed Upload)</option>
                 </AppInput>
                 <AppInput v-model="smsForm.r2_bucket" label="R2 Bucket" placeholder="school-erp-assets" />
-                <AppInput v-model="smsForm.r2_public_base_url" label="R2 Public URL" placeholder="https://cdn.example.com" />
+                <AppInput
+                  v-model="smsForm.r2_public_base_url"
+                  label="R2 Public URL"
+                  placeholder="https://cdn.example.com"
+                />
               </div>
             </div>
 
@@ -177,14 +315,21 @@
             <div class="rounded-lg border border-gray-200 dark:border-gray-700 p-4 space-y-3">
               <div class="flex items-center justify-between">
                 <p class="text-sm font-semibold text-gray-900 dark:text-white">Integration Readiness</p>
-                <span class="text-xs" :class="isReadyForApi ? 'text-emerald-600 dark:text-emerald-300' : 'text-amber-600 dark:text-amber-300'">
+                <span
+                  class="text-xs"
+                  :class="
+                    isReadyForApi ? 'text-emerald-600 dark:text-emerald-300' : 'text-amber-600 dark:text-amber-300'
+                  "
+                >
                   {{ isReadyForApi ? 'Ready' : 'Action Required' }}
                 </span>
               </div>
               <ul class="space-y-1 text-xs text-gray-600 dark:text-gray-300">
                 <li v-for="check in readinessChecks" :key="check.key" class="flex items-center justify-between">
                   <span>{{ check.message }}</span>
-                  <span :class="check.ok ? 'text-emerald-600 dark:text-emerald-300' : 'text-rose-600 dark:text-rose-300'">
+                  <span
+                    :class="check.ok ? 'text-emerald-600 dark:text-emerald-300' : 'text-rose-600 dark:text-rose-300'"
+                  >
                     {{ check.ok ? 'OK' : 'Missing' }}
                   </span>
                 </li>
@@ -197,7 +342,9 @@
               <ul v-if="endpointChecks.length" class="space-y-1 text-xs text-gray-600 dark:text-gray-300">
                 <li v-for="check in endpointChecks" :key="check.key" class="flex items-center justify-between gap-4">
                   <span class="truncate">{{ check.label }} ({{ check.url }})</span>
-                  <span :class="check.ok ? 'text-emerald-600 dark:text-emerald-300' : 'text-rose-600 dark:text-rose-300'">
+                  <span
+                    :class="check.ok ? 'text-emerald-600 dark:text-emerald-300' : 'text-rose-600 dark:text-rose-300'"
+                  >
                     {{ check.ok ? check.message : check.message }}
                   </span>
                 </li>
@@ -214,7 +361,15 @@
                   <li v-for="c in circuitStates" :key="c.key" class="flex items-center justify-between gap-3">
                     <span>{{ c.key }} (fails: {{ c.failures }})</span>
                     <div class="flex items-center gap-2">
-                      <span :class="c.status === 'open' ? 'text-rose-600 dark:text-rose-300' : c.status === 'half_open' ? 'text-amber-600 dark:text-amber-300' : 'text-emerald-600 dark:text-emerald-300'">
+                      <span
+                        :class="
+                          c.status === 'open'
+                            ? 'text-rose-600 dark:text-rose-300'
+                            : c.status === 'half_open'
+                              ? 'text-amber-600 dark:text-amber-300'
+                              : 'text-emerald-600 dark:text-emerald-300'
+                        "
+                      >
                         {{
                           c.status === 'open' && c.openedAt
                             ? `Open (${Math.max(0, Math.ceil((c.cooldownMs - (nowTs - c.openedAt)) / 1000))}s)`
@@ -319,10 +474,16 @@
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-50 dark:divide-gray-700">
-              <tr v-for="user in settingsStore.users" :key="user.id" class="hover:bg-gray-50/50 dark:hover:bg-gray-700/50">
+              <tr
+                v-for="user in settingsStore.users"
+                :key="user.id"
+                class="hover:bg-gray-50/50 dark:hover:bg-gray-700/50"
+              >
                 <td class="px-6 py-3">
                   <div class="flex items-center gap-3">
-                    <div class="flex h-8 w-8 items-center justify-center rounded-full bg-primary-100 text-xs font-semibold text-primary-700">
+                    <div
+                      class="flex h-8 w-8 items-center justify-center rounded-full bg-primary-100 text-xs font-semibold text-primary-700"
+                    >
                       {{ user.name.charAt(0) }}
                     </div>
                     <span class="font-medium text-gray-900 dark:text-white">{{ user.name }}</span>
@@ -338,11 +499,34 @@
                 <td class="px-6 py-3 text-gray-500 dark:text-gray-400 text-xs">{{ user.last_login || 'Never' }}</td>
                 <td class="px-6 py-3">
                   <div class="flex items-center gap-1">
-                    <button @click="editUser(user)" class="rounded p-1.5 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-primary-600" title="Edit">
-                      <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                    <button
+                      @click="editUser(user)"
+                      class="rounded p-1.5 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-primary-600"
+                      title="Edit"
+                    >
+                      <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                        />
+                      </svg>
                     </button>
-                    <button v-if="user.id !== 1" @click="settingsStore.deleteUser(user.id)" class="rounded p-1.5 text-gray-400 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-600" title="Delete">
-                      <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                    <button
+                      v-if="user.id !== 1"
+                      @click="settingsStore.deleteUser(user.id)"
+                      class="rounded p-1.5 text-gray-400 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-600"
+                      title="Delete"
+                    >
+                      <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                        />
+                      </svg>
                     </button>
                   </div>
                 </td>
@@ -382,7 +566,9 @@
         <div class="space-y-5">
           <div class="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
             <p class="text-sm font-semibold text-gray-900 dark:text-white">Snapshot Export</p>
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Download complete ERP local data as JSON backup.</p>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              Download complete ERP local data as JSON backup.
+            </p>
             <div class="mt-3 flex items-center justify-between">
               <span class="text-xs text-gray-500 dark:text-gray-400">Schema Version: v{{ schemaVersion }}</span>
               <AppButton size="sm" @click="handleExportSnapshot">Export Backup</AppButton>
@@ -391,12 +577,20 @@
 
           <div class="rounded-lg border border-gray-200 dark:border-gray-700 p-4 space-y-3">
             <p class="text-sm font-semibold text-gray-900 dark:text-white">Snapshot Import</p>
-            <p class="text-xs text-gray-500 dark:text-gray-400">Upload backup file and choose merge or full replace mode.</p>
+            <p class="text-xs text-gray-500 dark:text-gray-400">
+              Upload backup file and choose merge or full replace mode.
+            </p>
             <AppInput v-model="importMode" type="select" label="Import Mode">
               <option value="merge">Merge into existing data</option>
               <option value="replace">Replace all existing ERP data</option>
             </AppInput>
-            <input ref="snapshotFileInput" type="file" accept="application/json" class="block w-full text-sm text-gray-600 dark:text-gray-300" @change="handleSnapshotPicked" />
+            <input
+              ref="snapshotFileInput"
+              type="file"
+              accept="application/json"
+              class="block w-full text-sm text-gray-600 dark:text-gray-300"
+              @change="handleSnapshotPicked"
+            />
             <div class="flex justify-end">
               <AppButton variant="secondary" @click="handleImportSnapshot">Import Backup</AppButton>
             </div>
@@ -404,6 +598,15 @@
         </div>
       </AppCard>
     </template>
+
+    <!-- Sticky Save Bar for school/branding/sms tabs -->
+    <StickyActionBar
+      :is-dirty="isSettingsDirty"
+      :saving="isSavingSettings"
+      :save-label="activeTab === 'sms' ? 'Save SMS Settings' : 'Save Settings'"
+      @save="activeTab === 'sms' ? saveSmsSettings() : saveSchoolInfo()"
+      @cancel="discardSettingsChanges"
+    />
   </div>
 </template>
 
@@ -415,7 +618,12 @@ import { useSettingsStore } from '@/stores/settings'
 import { useToastStore } from '@/stores/toast'
 import { useAuditStore } from '@/stores/audit'
 import { evaluateIntegrationReadiness } from '@/services/integrationReadinessService'
-import { SCHEMA_VERSION, downloadErpSnapshot, importErpSnapshot, type ErpSnapshot } from '@/services/dataMigrationService'
+import {
+  SCHEMA_VERSION,
+  downloadErpSnapshot,
+  importErpSnapshot,
+  type ErpSnapshot,
+} from '@/services/dataMigrationService'
 import { runIntegrationEndpointProbes, type EndpointProbeResult } from '@/services/integrationProbeService'
 import {
   clearAllCircuitBreakers,
@@ -430,25 +638,68 @@ import AppButton from '@/components/ui/AppButton.vue'
 import AppInput from '@/components/ui/AppInput.vue'
 import AppModal from '@/components/ui/AppModal.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
+import StickyActionBar from '@/components/ui/StickyActionBar.vue'
+import { generateEnrollmentNo, formatEnrollmentNo } from '@/utils/enrollmentNumber'
 
 const authStore = useAuthStore()
 const settingsStore = useSettingsStore()
 const toast = useToastStore()
+
+const isSavingSettings = ref(false)
+let schoolSnapshot = JSON.stringify({ ...settingsStore.settings })
+let smsSnapshot = JSON.stringify({})
+
+const isSettingsDirty = computed(() => {
+  if (activeTab.value === 'sms') return JSON.stringify(smsForm) !== smsSnapshot
+  if (activeTab.value === 'school' || activeTab.value === 'branding')
+    return JSON.stringify(schoolForm) !== schoolSnapshot
+  return false
+})
+
+function discardSettingsChanges() {
+  if (activeTab.value === 'sms') {
+    const snap = JSON.parse(smsSnapshot)
+    Object.assign(smsForm, snap)
+  } else {
+    const snap = JSON.parse(schoolSnapshot)
+    Object.assign(schoolForm, snap)
+  }
+}
 const auditStore = useAuditStore()
 const canManageSlaPolicy = computed(() => authStore.user?.role === 'admin')
+
+// Live preview of a sample enrollment number using current settings
+const enrollmentPreview = computed(() => {
+  const inst = (schoolForm.institution_code || '001').replace(/\D/g, '').slice(-3).padStart(3, '0')
+  const raw = generateEnrollmentNo(new Date().toISOString().slice(0, 10), 'Class 6', inst, 1)
+  return formatEnrollmentNo(raw)
+})
 
 const activeTab = ref('school')
 const tabs = [
   { key: 'school', label: 'School Info' },
+  { key: 'branding', label: 'Executive Branding' },
   { key: 'sms', label: 'SMS Settings' },
   { key: 'users', label: 'Users & Roles' },
   { key: 'data', label: 'Data Ops' },
+]
+
+const brandPresets = [
+  { name: 'Indigo (Default)', color: '#4f46e5' },
+  { name: 'Oxford Blue', color: '#1e3a8a' },
+  { name: 'Emerald Guard', color: '#059669' },
+  { name: 'Royal Crimson', color: '#be123c' },
+  { name: 'Deep Violet', color: '#7c3aed' },
+  { name: 'Slate Modern', color: '#334155' },
+  { name: 'Oceanic', color: '#0284c7' },
+  { name: 'Earthy Amber', color: '#b45309' },
 ]
 
 // School Info Form
 const schoolForm = reactive({ ...settingsStore.settings })
 onMounted(() => {
   Object.assign(schoolForm, settingsStore.settings)
+  schoolSnapshot = JSON.stringify({ ...schoolForm })
   refreshCircuits()
   circuitTicker = window.setInterval(() => {
     nowTs.value = Date.now()
@@ -464,7 +715,11 @@ onUnmounted(() => {
 })
 
 function saveSchoolInfo() {
-  const critical = normalizePositiveMinutes(schoolForm.sla_critical_minutes, settingsStore.settings.sla_critical_minutes)
+  isSavingSettings.value = true
+  const critical = normalizePositiveMinutes(
+    schoolForm.sla_critical_minutes,
+    settingsStore.settings.sla_critical_minutes,
+  )
   const warning = normalizePositiveMinutes(schoolForm.sla_warning_minutes, settingsStore.settings.sla_warning_minutes)
   const info = normalizePositiveMinutes(schoolForm.sla_info_minutes, settingsStore.settings.sla_info_minutes)
   const existingPolicy = {
@@ -507,6 +762,8 @@ function saveSchoolInfo() {
   schoolForm.sla_info_minutes = nextPolicy.info
   schoolForm.sla_policy_version = nextPolicy.version
   schoolForm.sla_policy_updated_at = savedAt
+  schoolSnapshot = JSON.stringify({ ...schoolForm })
+  isSavingSettings.value = false
 
   if (policyChanged) {
     const actorName = authStore.user?.name || 'Settings Operator'
@@ -564,12 +821,16 @@ const smsForm = reactive({
   audit_signature_mode: settingsStore.settings.audit_signature_mode,
   audit_signature_endpoint: settingsStore.settings.audit_signature_endpoint,
 })
+smsSnapshot = JSON.stringify({ ...smsForm })
 
 function saveSmsSettings() {
   settingsStore.updateSettings({ ...smsForm })
+  smsSnapshot = JSON.stringify({ ...smsForm })
 }
 
-const readinessChecks = computed(() => evaluateIntegrationReadiness(smsForm as unknown as typeof settingsStore.settings))
+const readinessChecks = computed(() =>
+  evaluateIntegrationReadiness(smsForm as unknown as typeof settingsStore.settings),
+)
 const isReadyForApi = computed(() => readinessChecks.value.every((c) => c.ok))
 const probingEndpoints = ref(false)
 const endpointChecks = ref<EndpointProbeResult[]>([])
@@ -687,7 +948,12 @@ function handleImportSnapshot() {
 // Users
 const showUserModal = ref(false)
 const editingUser = ref<UserRole | null>(null)
-const userForm = reactive({ name: '', email: '', role: 'teacher' as UserRole['role'], status: 'active' as UserRole['status'] })
+const userForm = reactive({
+  name: '',
+  email: '',
+  role: 'teacher' as UserRole['role'],
+  status: 'active' as UserRole['status'],
+})
 
 function openAddUserModal() {
   editingUser.value = null
@@ -714,7 +980,12 @@ function handleSaveUser() {
 }
 
 function roleColor(role: string) {
-  const map: Record<string, 'blue' | 'green' | 'yellow' | 'gray'> = { admin: 'blue', accountant: 'green', teacher: 'yellow', receptionist: 'gray' }
+  const map: Record<string, 'blue' | 'green' | 'yellow' | 'gray'> = {
+    admin: 'blue',
+    accountant: 'green',
+    teacher: 'yellow',
+    receptionist: 'gray',
+  }
   return map[role] || 'gray'
 }
 </script>

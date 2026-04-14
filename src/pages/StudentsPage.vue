@@ -72,7 +72,7 @@
             <option v-for="cls in studentStore.classes" :key="cls" :value="cls">{{ cls }}</option>
           </select>
           <button class="flex h-[56px] w-[56px] items-center justify-center rounded-2xl border border-gray-200 bg-white text-xl transition-all hover:scale-105 active:scale-95 dark:border-gray-700 dark:bg-gray-900">
-            ⚡
+            ÔÜí
           </button>
         </div>
       </div>
@@ -100,7 +100,8 @@
           </thead>
           <tbody class="divide-y divide-gray-50 dark:divide-gray-700/50">
             <tr v-for="student in sortedStudents" :key="student.id" 
-                class="group transition-all hover:bg-primary-50/30 dark:hover:bg-primary-900/5">
+                @click="$router.push('/students/' + student.id)"
+                class="group cursor-pointer transition-all hover:bg-primary-50/30 dark:hover:bg-primary-900/5 hover:shadow-sm">
               <td class="px-8 py-5">
                 <div class="flex items-center gap-4">
                   <div class="relative h-12 w-12 flex-shrink-0">
@@ -179,50 +180,95 @@
     </AppCard>
 
     <!-- Professional Enrollment Modal -->
-    <AppModal v-model="showModal" :title="isEditing ? 'Update Profile Protocol' : 'New Admission Protocol'" size="lg">
-      <form @submit.prevent="handleSubmit" class="p-2 space-y-8">
-         <div class="grid grid-cols-1 gap-8 sm:grid-cols-2">
-          <div class="space-y-2">
-             <label class="text-[10px] font-black uppercase tracking-widest text-gray-400">Formal Identity</label>
-             <AppInput v-model="form.name" placeholder="Johnathan Doe" required :error="formErrors.name" class="font-bold" />
+    <AppModal v-model="showModal" :title="isEditing ? 'Update Student Profile' : 'New Admission'" size="lg">
+      <form @submit.prevent="handleSubmit" class="p-2 space-y-6">
+
+        <!-- STEP 1: Phone Lookup (ALWAYS FIRST) -->
+        <div class="space-y-2 rounded-2xl border-2 border-primary-100 bg-primary-50/30 p-4 dark:border-primary-900/30 dark:bg-primary-900/10">
+          <div class="flex items-center justify-between">
+            <label class="text-[10px] font-black uppercase tracking-widest text-primary-700 dark:text-primary-400">📱 Guardian Phone (lookup existing parent)</label>
+            <span v-if="parentLookupStatus === 'found'" class="flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-black text-emerald-700">
+              ✓ Existing Parent Found — details auto-filled!
+            </span>
+            <span v-else-if="parentLookupStatus === 'new'" class="flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-[9px] font-black text-blue-700">
+              ✨ New Parent Profile
+            </span>
           </div>
-          <div class="space-y-2">
-             <label class="text-[10px] font-black uppercase tracking-widest text-gray-400">Roll Hash</label>
-             <AppInput v-model="form.roll_number" placeholder="2026-X-001" required :error="formErrors.roll_number" class="font-bold" />
+          <AppInput
+            v-model="form.phone"
+            type="tel"
+            maxlength="10"
+            placeholder="Enter 10-digit mobile number first..."
+            required
+            :error="formErrors.phone"
+            @input="handlePhoneLookup"
+            class="font-black text-lg h-[52px] border-2 focus:border-primary-400"
+          />
+          <p class="text-[9px] text-gray-400 italic">Type number to auto-discover an existing parent in the system</p>
+        </div>
+
+        <!-- STEP 2: Parent Details (auto-filled if found) -->
+        <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+          <div :class="['space-y-2 transition-all', parentLookupStatus === 'found' ? 'opacity-70' : '']">
+            <label class="text-[10px] font-black uppercase tracking-widest text-gray-400">
+              Guardian Name *
+              <span v-if="parentLookupStatus === 'found'" class="ml-1 text-emerald-600">(auto-filled)</span>
+            </label>
+            <AppInput v-model="form.parent_name" placeholder="Legal Guardian Name" required :error="formErrors.parent_name" class="font-bold" />
           </div>
-          <div class="space-y-2">
-             <label class="text-[10px] font-black uppercase tracking-widest text-gray-400">Academic Placement</label>
-             <AppInput v-model="form.class_name" type="select" required :error="formErrors.class_name" class="font-bold">
-               <option v-for="cls in studentStore.classes" :key="cls" :value="cls">{{ cls }}</option>
-             </AppInput>
+          <div :class="['space-y-2 transition-all', parentLookupStatus === 'found' ? 'opacity-70' : '']">
+            <label class="text-[10px] font-black uppercase tracking-widest text-gray-400">
+              Guardian Email
+              <span v-if="parentLookupStatus === 'found'" class="ml-1 text-emerald-600">(auto-filled)</span>
+            </label>
+            <AppInput v-model="form.email" type="email" placeholder="parent@email.com" class="font-bold" />
           </div>
-          <div class="space-y-2">
-             <label class="text-[10px] font-black uppercase tracking-widest text-gray-400">Division/Block</label>
-             <AppInput v-model="form.section" type="select" required class="font-bold">
-               <option value="A">Block A</option>
-               <option value="B">Block B</option>
-               <option value="C">Block C</option>
-             </AppInput>
-          </div>
-          <div class="space-y-2">
-             <label class="text-[10px] font-black uppercase tracking-widest text-gray-400">Guardian Name</label>
-             <AppInput v-model="form.parent_name" placeholder="Legal Guardian Name" required :error="formErrors.parent_name" class="font-bold" />
-          </div>
-          <div class="space-y-2">
-             <label class="text-[10px] font-black uppercase tracking-widest text-gray-400">Secure Contact</label>
-             <AppInput v-model="form.phone" type="tel" placeholder="10-digit primary" required :error="formErrors.phone" class="font-bold" />
+          <div :class="['space-y-2 col-span-2 transition-all', parentLookupStatus === 'found' ? 'opacity-70' : '']">
+            <label class="text-[10px] font-black uppercase tracking-widest text-gray-400">
+              Residential Address
+              <span v-if="parentLookupStatus === 'found'" class="ml-1 text-emerald-600">(auto-filled)</span>
+            </label>
+            <AppInput v-model="form.address" type="textarea" placeholder="Full permanent address..." :rows="2" />
           </div>
         </div>
-        <div class="space-y-2">
-           <label class="text-[10px] font-black uppercase tracking-widest text-gray-400">Residential Coordinate</label>
-           <AppInput v-model="form.address" type="textarea" placeholder="Full permanent address..." :rows="3" />
+
+        <!-- STEP 3: Student Details -->
+        <div class="border-t border-gray-100 pt-4 dark:border-gray-700">
+          <p class="mb-4 text-[10px] font-black uppercase tracking-widest text-gray-400">Student Information</p>
+          <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+            <div class="space-y-2">
+              <label class="text-[10px] font-black uppercase tracking-widest text-gray-400">Student Name *</label>
+              <AppInput v-model="form.name" placeholder="Student Full Name" required :error="formErrors.name" class="font-bold" />
+            </div>
+            <div class="space-y-2">
+              <label class="text-[10px] font-black uppercase tracking-widest text-gray-400">Roll Number *</label>
+              <AppInput v-model="form.roll_number" placeholder="2026-X-001" required :error="formErrors.roll_number" class="font-bold" />
+            </div>
+            <div class="space-y-2">
+              <label class="text-[10px] font-black uppercase tracking-widest text-gray-400">Class *</label>
+              <AppInput v-model="form.class_name" type="select" required :error="formErrors.class_name" class="font-bold">
+                <option value="" disabled>Select class...</option>
+                <option v-for="cls in classStore.classNames" :key="cls" :value="cls">{{ cls }}</option>
+              </AppInput>
+              <p v-if="!classStore.classNames.length" class="text-xs text-amber-500 font-semibold">
+                ⚠️ No classes defined. Go to <strong>Class Management</strong> to add classes first.
+              </p>
+            </div>
+            <div class="space-y-2">
+              <label class="text-[10px] font-black uppercase tracking-widest text-gray-400">Section</label>
+              <AppInput v-model="form.section" type="select" class="font-bold">
+                <option v-for="sec in selectedClassSections" :key="sec.value" :value="sec.value">{{ sec.label }}</option>
+              </AppInput>
+            </div>
+          </div>
         </div>
+
       </form>
       <template #footer>
         <div class="flex items-center justify-end gap-3 p-2">
           <AppButton variant="secondary" @click="showModal = false" class="border-none">Dismiss</AppButton>
           <AppButton @click="handleSubmit" :loading="studentStore.loading" class="px-10 shadow-2xl shadow-primary-200">
-            {{ isEditing ? 'Sync Protocol' : 'Finalize Entry' }}
+            {{ isEditing ? 'Update Student' : 'Finalize Admission' }}
           </AppButton>
         </div>
       </template>
@@ -231,9 +277,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, watch } from 'vue'
 import type { Student } from '@/types'
 import { useStudentStore } from '@/stores/students'
+import { useClassStore } from '@/stores/classes'
 import { useToastStore } from '@/stores/toast'
 import { useTableSort } from '@/composables/useTableSort'
 import { exportStudentList } from '@/utils/export'
@@ -247,6 +294,7 @@ import StatusBadge from '@/components/ui/StatusBadge.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 
 const studentStore = useStudentStore()
+const classStore = useClassStore()
 const toast = useToastStore()
 const paginatedRef = computed(() => studentStore.paginatedStudents)
 const { toggleSort, sortedItems: sortedStudents, sortIcon } = useTableSort(paginatedRef)
@@ -256,11 +304,13 @@ const showDeleteModal = ref(false)
 const isEditing = ref(false)
 const editingId = ref<number | null>(null)
 const deleteTarget = ref<Student | null>(null)
+const parentLookupStatus = ref<'none' | 'found' | 'new'>('none')
+
 
 // High-fidelity Census Stats
 const summaryStats = computed(() => [
-  { label: 'Total Enrolled', val: studentStore.students.length, icon: '👨‍🎓', color: 'text-gray-900', barColor: 'bg-primary-500', progress: 100 },
-  { label: 'Verified Active', val: studentStore.students.filter(s => s.status === 'active').length, icon: '✅', color: 'text-emerald-600', barColor: 'bg-emerald-500', progress: 85 },
+  { label: 'Total Enrolled', val: Array.isArray(studentStore.students) ? studentStore.students.length : 0, icon: '👨‍🎓', color: 'text-gray-900', barColor: 'bg-primary-500', progress: 100 },
+  { label: 'Verified Active', val: Array.isArray(studentStore.students) ? studentStore.students.filter(s => s.status === 'active').length : 0, icon: '✅', color: 'text-emerald-600', barColor: 'bg-emerald-500', progress: 85 },
   { label: 'New Admissions', val: 12, icon: '✨', color: 'text-indigo-600', barColor: 'bg-indigo-500', progress: 40 },
   { label: 'Document Alerts', val: 3, icon: '⚠️', color: 'text-rose-600', barColor: 'bg-rose-500', progress: 10 }
 ])
@@ -281,15 +331,55 @@ const defaultForm = {
 const form = reactive({ ...defaultForm })
 const formErrors = reactive({ name: '', roll_number: '', class_name: '', parent_name: '', phone: '' })
 
+// Parent auto-fill lookup: fires when phone field changes
+function handlePhoneLookup() {
+  if (isEditing.value) return
+  const phone = form.phone.replace(/\D/g, '')
+  if (phone.length < 10) {
+    parentLookupStatus.value = 'none'
+    return
+  }
+  const existing = Array.isArray(studentStore.students)
+    ? studentStore.students.find((s) => s.phone === phone)
+    : null
+  if (existing) {
+    parentLookupStatus.value = 'found'
+    form.parent_name = existing.parent_name || form.parent_name
+    form.email = existing.email || form.email
+    form.address = existing.address || form.address
+    toast.show('info', `✓ Parent found: ${existing.parent_name}. Details auto-filled!`)
+  } else {
+    parentLookupStatus.value = 'new'
+  }
+}
+
+// Dynamic sections based on selected class from Class Management
+const selectedClassSections = computed(() => {
+  const cls = classStore.classes.find((c) => c.name === form.class_name)
+  if (cls && cls.sections.length) {
+    return cls.sections.map((s) => ({ value: s.name, label: `Section ${s.name}` }))
+  }
+  return [
+    { value: 'A', label: 'Section A' },
+    { value: 'B', label: 'Section B' },
+    { value: 'C', label: 'Section C' },
+  ]
+})
+
+// Reset section when class changes
+watch(() => form.class_name, () => { form.section = 'A' })
+
 function resetForm() {
   Object.assign(form, defaultForm)
   Object.keys(formErrors).forEach((k) => (formErrors[k as keyof typeof formErrors] = ''))
+  parentLookupStatus.value = 'none'
 }
 
 function openAddModal() {
   resetForm()
   isEditing.value = false
   editingId.value = null
+  parentLookupStatus.value = 'none'
   showModal.value = true
 }
 

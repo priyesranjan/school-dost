@@ -5,27 +5,194 @@ import { useToastStore } from './toast'
 import { saveToStorage, loadFromStorage } from '@/utils/storage'
 
 const demoStructures: FeeStructure[] = [
-  { id: 1, name: 'Tuition Fee', class_name: 'Class 10', amount: 15000, due_date: '2026-04-15', academic_year: '2025-26' },
-  { id: 2, name: 'Tuition Fee', class_name: 'Class 9', amount: 13000, due_date: '2026-04-15', academic_year: '2025-26' },
-  { id: 3, name: 'Tuition Fee', class_name: 'Class 8', amount: 11000, due_date: '2026-04-15', academic_year: '2025-26' },
+  {
+    id: 1,
+    name: 'Tuition Fee',
+    class_name: 'Class 10',
+    amount: 15000,
+    due_date: '2026-04-15',
+    academic_year: '2025-26',
+  },
+  {
+    id: 2,
+    name: 'Tuition Fee',
+    class_name: 'Class 9',
+    amount: 13000,
+    due_date: '2026-04-15',
+    academic_year: '2025-26',
+  },
+  {
+    id: 3,
+    name: 'Tuition Fee',
+    class_name: 'Class 8',
+    amount: 11000,
+    due_date: '2026-04-15',
+    academic_year: '2025-26',
+  },
   { id: 4, name: 'Lab Fee', class_name: 'Class 10', amount: 3000, due_date: '2026-04-15', academic_year: '2025-26' },
   { id: 5, name: 'Lab Fee', class_name: 'Class 9', amount: 2500, due_date: '2026-04-15', academic_year: '2025-26' },
-  { id: 6, name: 'Transport Fee', class_name: 'All Classes', amount: 5000, due_date: '2026-04-15', academic_year: '2025-26' },
-  { id: 7, name: 'Annual Fee', class_name: 'All Classes', amount: 8000, due_date: '2026-05-01', academic_year: '2025-26' },
+  {
+    id: 6,
+    name: 'Transport Fee',
+    class_name: 'All Classes',
+    amount: 5000,
+    due_date: '2026-04-15',
+    academic_year: '2025-26',
+  },
+  {
+    id: 7,
+    name: 'Annual Fee',
+    class_name: 'All Classes',
+    amount: 8000,
+    due_date: '2026-05-01',
+    academic_year: '2025-26',
+  },
 ]
 
 const demoPayments: FeePayment[] = [
-  { id: 1, student_id: 1, student_name: 'Aarav Sharma', class_name: 'Class 10', fee_name: 'Tuition Fee', total_amount: 15000, paid_amount: 15000, due_amount: 0, status: 'paid', payment_date: '2026-04-02', payment_method: 'upi', receipt_number: 'RCP-2026-001' },
-  { id: 2, student_id: 2, student_name: 'Priya Patel', class_name: 'Class 10', fee_name: 'Tuition Fee', total_amount: 15000, paid_amount: 8000, due_amount: 7000, status: 'partial', payment_date: '2026-04-01', payment_method: 'cash', receipt_number: 'RCP-2026-002' },
-  { id: 3, student_id: 3, student_name: 'Rohan Gupta', class_name: 'Class 9', fee_name: 'Tuition Fee', total_amount: 13000, paid_amount: 0, due_amount: 13000, status: 'unpaid', payment_date: null, payment_method: null, receipt_number: null },
-  { id: 4, student_id: 4, student_name: 'Ananya Singh', class_name: 'Class 9', fee_name: 'Tuition Fee', total_amount: 13000, paid_amount: 13000, due_amount: 0, status: 'paid', payment_date: '2026-03-30', payment_method: 'bank_transfer', receipt_number: 'RCP-2026-003' },
-  { id: 5, student_id: 5, student_name: 'Karan Mehta', class_name: 'Class 8', fee_name: 'Tuition Fee', total_amount: 11000, paid_amount: 0, due_amount: 11000, status: 'unpaid', payment_date: null, payment_method: null, receipt_number: null },
-  { id: 6, student_id: 6, student_name: 'Sneha Reddy', class_name: 'Class 8', fee_name: 'Tuition Fee', total_amount: 11000, paid_amount: 5000, due_amount: 6000, status: 'partial', payment_date: '2026-04-01', payment_method: 'cash', receipt_number: 'RCP-2026-004' },
-  { id: 7, student_id: 1, student_name: 'Aarav Sharma', class_name: 'Class 10', fee_name: 'Lab Fee', total_amount: 3000, paid_amount: 3000, due_amount: 0, status: 'paid', payment_date: '2026-04-02', payment_method: 'upi', receipt_number: 'RCP-2026-005' },
-  { id: 8, student_id: 7, student_name: 'Arjun Kumar', class_name: 'Class 7', fee_name: 'Tuition Fee', total_amount: 9000, paid_amount: 0, due_amount: 9000, status: 'unpaid', payment_date: null, payment_method: null, receipt_number: null },
-  { id: 9, student_id: 9, student_name: 'Dev Nair', class_name: 'Class 6', fee_name: 'Tuition Fee', total_amount: 8000, paid_amount: 4000, due_amount: 4000, status: 'partial', payment_date: '2026-03-28', payment_method: 'cheque', receipt_number: 'RCP-2026-006' },
-  { id: 10, student_id: 11, student_name: 'Aditya Verma', class_name: 'Class 10', fee_name: 'Tuition Fee', total_amount: 15000, paid_amount: 15000, due_amount: 0, status: 'paid', payment_date: '2026-04-01', payment_method: 'bank_transfer', receipt_number: 'RCP-2026-007' },
+  {
+    id: 1,
+    student_id: 1,
+    student_name: 'Aarav Sharma',
+    class_name: 'Class 10',
+    fee_name: 'Tuition Fee',
+    total_amount: 15000,
+    paid_amount: 15000,
+    due_amount: 0,
+    status: 'paid',
+    payment_date: '2026-04-02',
+    payment_method: 'upi',
+    receipt_number: 'RCP-2026-001',
+  },
+  {
+    id: 2,
+    student_id: 2,
+    student_name: 'Priya Patel',
+    class_name: 'Class 10',
+    fee_name: 'Tuition Fee',
+    total_amount: 15000,
+    paid_amount: 8000,
+    due_amount: 7000,
+    status: 'partial',
+    payment_date: '2026-04-01',
+    payment_method: 'cash',
+    receipt_number: 'RCP-2026-002',
+  },
+  {
+    id: 3,
+    student_id: 3,
+    student_name: 'Rohan Gupta',
+    class_name: 'Class 9',
+    fee_name: 'Tuition Fee',
+    total_amount: 13000,
+    paid_amount: 0,
+    due_amount: 13000,
+    status: 'unpaid',
+    payment_date: null,
+    payment_method: null,
+    receipt_number: null,
+  },
+  {
+    id: 4,
+    student_id: 4,
+    student_name: 'Ananya Singh',
+    class_name: 'Class 9',
+    fee_name: 'Tuition Fee',
+    total_amount: 13000,
+    paid_amount: 13000,
+    due_amount: 0,
+    status: 'paid',
+    payment_date: '2026-03-30',
+    payment_method: 'bank_transfer',
+    receipt_number: 'RCP-2026-003',
+  },
+  {
+    id: 5,
+    student_id: 5,
+    student_name: 'Karan Mehta',
+    class_name: 'Class 8',
+    fee_name: 'Tuition Fee',
+    total_amount: 11000,
+    paid_amount: 0,
+    due_amount: 11000,
+    status: 'unpaid',
+    payment_date: null,
+    payment_method: null,
+    receipt_number: null,
+  },
+  {
+    id: 6,
+    student_id: 6,
+    student_name: 'Sneha Reddy',
+    class_name: 'Class 8',
+    fee_name: 'Tuition Fee',
+    total_amount: 11000,
+    paid_amount: 5000,
+    due_amount: 6000,
+    status: 'partial',
+    payment_date: '2026-04-01',
+    payment_method: 'cash',
+    receipt_number: 'RCP-2026-004',
+  },
+  {
+    id: 7,
+    student_id: 1,
+    student_name: 'Aarav Sharma',
+    class_name: 'Class 10',
+    fee_name: 'Lab Fee',
+    total_amount: 3000,
+    paid_amount: 3000,
+    due_amount: 0,
+    status: 'paid',
+    payment_date: '2026-04-02',
+    payment_method: 'upi',
+    receipt_number: 'RCP-2026-005',
+  },
+  {
+    id: 8,
+    student_id: 7,
+    student_name: 'Arjun Kumar',
+    class_name: 'Class 7',
+    fee_name: 'Tuition Fee',
+    total_amount: 9000,
+    paid_amount: 0,
+    due_amount: 9000,
+    status: 'unpaid',
+    payment_date: null,
+    payment_method: null,
+    receipt_number: null,
+  },
+  {
+    id: 9,
+    student_id: 9,
+    student_name: 'Dev Nair',
+    class_name: 'Class 6',
+    fee_name: 'Tuition Fee',
+    total_amount: 8000,
+    paid_amount: 4000,
+    due_amount: 4000,
+    status: 'partial',
+    payment_date: '2026-03-28',
+    payment_method: 'cheque',
+    receipt_number: 'RCP-2026-006',
+  },
+  {
+    id: 10,
+    student_id: 11,
+    student_name: 'Aditya Verma',
+    class_name: 'Class 10',
+    fee_name: 'Tuition Fee',
+    total_amount: 15000,
+    paid_amount: 15000,
+    due_amount: 0,
+    status: 'paid',
+    payment_date: '2026-04-01',
+    payment_method: 'bank_transfer',
+    receipt_number: 'RCP-2026-007',
+  },
 ]
+
+const RISK_DEMO_TAG = '[DEMO-RISK]'
 
 export const useFeeStore = defineStore('fees', () => {
   const toast = useToastStore()
@@ -48,7 +215,7 @@ export const useFeeStore = defineStore('fees', () => {
         (p) =>
           p.student_name.toLowerCase().includes(q) ||
           p.fee_name.toLowerCase().includes(q) ||
-          p.receipt_number?.toLowerCase().includes(q)
+          p.receipt_number?.toLowerCase().includes(q),
       )
     }
     if (statusFilter.value) {
@@ -58,6 +225,13 @@ export const useFeeStore = defineStore('fees', () => {
   })
 
   const duePayments = computed(() => payments.value.filter((p) => p.status === 'unpaid' || p.status === 'partial'))
+  const riskDemoCount = computed(
+    () =>
+      payments.value.filter(
+        (p) => p.fee_name.startsWith(RISK_DEMO_TAG) || (p.receipt_number || '').startsWith('DEMO-RISK-'),
+      ).length,
+  )
+  const hasRiskDemoData = computed(() => riskDemoCount.value > 0)
 
   const totalCollected = computed(() => payments.value.reduce((sum, p) => sum + p.paid_amount, 0))
 
@@ -122,6 +296,91 @@ export const useFeeStore = defineStore('fees', () => {
     toast.success('Fee assigned to student')
   }
 
+  function createRiskDemoData() {
+    const existing = payments.value.filter((p) => p.fee_name.startsWith(RISK_DEMO_TAG))
+    if (existing.length > 0) {
+      toast.show('info', 'Risk demo data already exists')
+      return
+    }
+
+    const today = new Date().toISOString().split('T')[0]
+    const seed = Date.now()
+    const records: FeePayment[] = [
+      {
+        id: seed + 1,
+        student_id: 9001,
+        student_name: 'Demo - Riya Kapoor',
+        class_name: 'Class 10',
+        fee_name: `${RISK_DEMO_TAG} Tuition`,
+        total_amount: 24000,
+        paid_amount: 3000,
+        due_amount: 21000,
+        status: 'partial',
+        payment_date: today,
+        payment_method: 'upi',
+        receipt_number: 'DEMO-RISK-001',
+      },
+      {
+        id: seed + 2,
+        student_id: 9002,
+        student_name: 'Demo - Kabir Das',
+        class_name: 'Class 9',
+        fee_name: `${RISK_DEMO_TAG} Annual`,
+        total_amount: 12000,
+        paid_amount: 0,
+        due_amount: 12000,
+        status: 'unpaid',
+        payment_date: null,
+        payment_method: null,
+        receipt_number: null,
+      },
+      {
+        id: seed + 3,
+        student_id: 9003,
+        student_name: 'Demo - Aarohi Jain',
+        class_name: 'Class 8',
+        fee_name: `${RISK_DEMO_TAG} Transport`,
+        total_amount: 8000,
+        paid_amount: 2500,
+        due_amount: 5500,
+        status: 'partial',
+        payment_date: today,
+        payment_method: 'cash',
+        receipt_number: 'DEMO-RISK-003',
+      },
+      {
+        id: seed + 4,
+        student_id: 9004,
+        student_name: 'Demo - Neel Verma',
+        class_name: 'Class 7',
+        fee_name: `${RISK_DEMO_TAG} Lab`,
+        total_amount: 4500,
+        paid_amount: 1000,
+        due_amount: 3500,
+        status: 'partial',
+        payment_date: today,
+        payment_method: 'cheque',
+        receipt_number: 'DEMO-RISK-004',
+      },
+    ]
+
+    payments.value.unshift(...records)
+    toast.success(`Risk demo created (${records.length} records)`)
+  }
+
+  function clearRiskDemoData() {
+    const before = payments.value.length
+    payments.value = payments.value.filter(
+      (p) => !p.fee_name.startsWith(RISK_DEMO_TAG) && !(p.receipt_number || '').startsWith('DEMO-RISK-'),
+    )
+    const removed = before - payments.value.length
+    if (removed === 0) {
+      toast.show('info', 'No risk demo data found')
+      return
+    }
+    toast.success(`Risk demo cleaned (${removed} records removed)`)
+  }
+
   return {
     structures,
     payments,
@@ -130,10 +389,14 @@ export const useFeeStore = defineStore('fees', () => {
     statusFilter,
     filteredPayments,
     duePayments,
+    riskDemoCount,
+    hasRiskDemoData,
     totalCollected,
     totalPending,
     addStructure,
     collectPayment,
     assignFee,
+    createRiskDemoData,
+    clearRiskDemoData,
   }
 })

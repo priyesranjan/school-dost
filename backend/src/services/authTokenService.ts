@@ -1,14 +1,18 @@
 import jwt from 'jsonwebtoken'
 import { randomUUID } from 'node:crypto'
+import bcrypt from 'bcryptjs'
 import { env } from '../config/env'
 
-export type AppRole = 'admin' | 'accountant' | 'teacher' | 'receptionist'
+export type AppRole = 'admin' | 'accountant' | 'teacher' | 'receptionist' | 'hod' | 'parent' | 'student' | 'superadmin'
 
 export type AuthClaims = {
   sub: string
   name: string
   role: AppRole
   email: string
+  /** Tenant slug — e.g. "dps-delhi". Empty string for superadmin (platform-level). */
+  tenantSlug: string
+  isRoot: boolean
 }
 
 type RefreshClaims = AuthClaims & { token_type: 'refresh' }
@@ -34,3 +38,13 @@ export function verifyRefreshToken(token: string) {
 // Backward compatible aliases for existing call-sites.
 export const createAuthToken = createAccessToken
 export const verifyAuthToken = verifyAccessToken
+
+/** Hash a plain-text password (used during tenant seeding) */
+export async function hashPassword(plain: string): Promise<string> {
+  return bcrypt.hash(plain, 12)
+}
+
+/** Verify a plain-text password against a stored hash */
+export async function verifyPassword(plain: string, hash: string): Promise<boolean> {
+  return bcrypt.compare(plain, hash)
+}

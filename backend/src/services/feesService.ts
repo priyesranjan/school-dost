@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { Prisma } from '@prisma/client'
-import { prisma } from '../db/prisma'
+import { Prisma, type PrismaClient } from '@prisma/client'
 
 type FeePaymentMethod = 'cash' | 'upi' | 'bank_transfer' | 'cheque'
 
@@ -8,14 +7,17 @@ function toDecimal(value: number | string) {
   return new Prisma.Decimal(value)
 }
 
-export async function createFeeStructure(input: {
-  name: string
-  class_name: string
-  amount: number
-  due_date: string
-  academic_year: string
-}) {
-  const row = await prisma.feeStructure.create({
+export async function createFeeStructure(
+  db: PrismaClient,
+  input: {
+    name: string
+    class_name: string
+    amount: number
+    due_date: string
+    academic_year: string
+  },
+) {
+  const row = await db.feeStructure.create({
     data: {
       name: input.name,
       className: input.class_name,
@@ -35,18 +37,21 @@ export async function createFeeStructure(input: {
   }
 }
 
-export async function createFeePayment(input: {
-  student_id: number
-  fee_structure_id?: number | null
-  total_amount: number
-  paid_amount: number
-  payment_method?: FeePaymentMethod | null
-  payment_date?: string | null
-}) {
+export async function createFeePayment(
+  db: PrismaClient,
+  input: {
+    student_id: number
+    fee_structure_id?: number | null
+    total_amount: number
+    paid_amount: number
+    payment_method?: FeePaymentMethod | null
+    payment_date?: string | null
+  },
+) {
   const dueAmount = Math.max(0, Number(input.total_amount) - Number(input.paid_amount))
   const status = dueAmount <= 0 ? 'paid' : input.paid_amount > 0 ? 'partial' : 'unpaid'
 
-  const row = await prisma.feePayment.create({
+  const row = await db.feePayment.create({
     data: {
       studentId: BigInt(input.student_id),
       feeStructureId: input.fee_structure_id ? BigInt(input.fee_structure_id) : null,
@@ -74,25 +79,28 @@ export async function createFeePayment(input: {
   }
 }
 
-export async function listFeeStructures(input: {
-  page: number
-  per_page: number
-  class_name?: string
-  academic_year?: string
-}) {
+export async function listFeeStructures(
+  db: PrismaClient,
+  input: {
+    page: number
+    per_page: number
+    class_name?: string
+    academic_year?: string
+  },
+) {
   const where = {
     ...(input.class_name ? { className: input.class_name } : {}),
     ...(input.academic_year ? { academicYear: input.academic_year } : {}),
   }
 
   const [rows, total] = await Promise.all([
-    prisma.feeStructure.findMany({
+    db.feeStructure.findMany({
       where,
       orderBy: [{ dueDate: 'asc' }],
       skip: (input.page - 1) * input.per_page,
       take: input.per_page,
     }),
-    prisma.feeStructure.count({ where }),
+    db.feeStructure.count({ where }),
   ])
 
   return {
@@ -110,19 +118,22 @@ export async function listFeeStructures(input: {
   }
 }
 
-export async function listFeePayments(input: {
-  page: number
-  per_page: number
-  student_id?: number
-  status?: 'paid' | 'partial' | 'unpaid'
-}) {
+export async function listFeePayments(
+  db: PrismaClient,
+  input: {
+    page: number
+    per_page: number
+    student_id?: number
+    status?: 'paid' | 'partial' | 'unpaid'
+  },
+) {
   const where = {
     ...(input.student_id ? { studentId: BigInt(input.student_id) } : {}),
     ...(input.status ? { status: input.status } : {}),
   }
 
   const [rows, total] = await Promise.all([
-    prisma.feePayment.findMany({
+    db.feePayment.findMany({
       where,
       include: {
         student: {
@@ -133,7 +144,7 @@ export async function listFeePayments(input: {
       skip: (input.page - 1) * input.per_page,
       take: input.per_page,
     }),
-    prisma.feePayment.count({ where }),
+    db.feePayment.count({ where }),
   ])
 
   return {

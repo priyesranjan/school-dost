@@ -2,7 +2,7 @@ import type { SchoolSettings } from '@/types'
 
 function readSettings(): Partial<SchoolSettings> {
   try {
-    const raw = localStorage.getItem('erp_settings')
+    const raw = localStorage.getItem('settings') || localStorage.getItem('erp_settings')
     return raw ? (JSON.parse(raw) as Partial<SchoolSettings>) : {}
   } catch {
     return {}

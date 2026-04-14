@@ -11,6 +11,8 @@ const defaultSettings: SchoolSettings = {
   school_email: 'info@dps-school.edu',
   principal_name: 'Dr. Rakesh Kumar',
   academic_year: '2025-26',
+  institution_code: '001',
+  brand_color: '#4f46e5',
   sms_enabled: true,
   sms_api_key: 'demo-api-key-xxxxx',
   sms_sender_id: 'SCHOOL',
@@ -34,11 +36,46 @@ const defaultSettings: SchoolSettings = {
 }
 
 const demoUsers: UserRole[] = [
-  { id: 1, name: 'Admin User', email: 'admin@school.com', role: 'admin', status: 'active', last_login: '2026-04-02 09:00' },
-  { id: 2, name: 'Sunita Sharma', email: 'sunita@school.com', role: 'accountant', status: 'active', last_login: '2026-04-01 14:30' },
-  { id: 3, name: 'Priya Verma', email: 'priya@school.com', role: 'teacher', status: 'active', last_login: '2026-03-31 08:45' },
-  { id: 4, name: 'Rahul Singh', email: 'rahul@school.com', role: 'receptionist', status: 'active', last_login: '2026-04-02 08:30' },
-  { id: 5, name: 'Meera Gupta', email: 'meera@school.com', role: 'teacher', status: 'inactive', last_login: '2026-02-15 10:00' },
+  {
+    id: 1,
+    name: 'Admin User',
+    email: 'admin@school.com',
+    role: 'admin',
+    status: 'active',
+    last_login: '2026-04-02 09:00',
+  },
+  {
+    id: 2,
+    name: 'Sunita Sharma',
+    email: 'sunita@school.com',
+    role: 'accountant',
+    status: 'active',
+    last_login: '2026-04-01 14:30',
+  },
+  {
+    id: 3,
+    name: 'Priya Verma',
+    email: 'priya@school.com',
+    role: 'teacher',
+    status: 'active',
+    last_login: '2026-03-31 08:45',
+  },
+  {
+    id: 4,
+    name: 'Rahul Singh',
+    email: 'rahul@school.com',
+    role: 'receptionist',
+    status: 'active',
+    last_login: '2026-04-02 08:30',
+  },
+  {
+    id: 5,
+    name: 'Meera Gupta',
+    email: 'meera@school.com',
+    role: 'teacher',
+    status: 'inactive',
+    last_login: '2026-02-15 10:00',
+  },
 ]
 
 export const useSettingsStore = defineStore('settings', () => {

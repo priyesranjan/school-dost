@@ -39,17 +39,17 @@ function writeDemoSessions(data: Record<string, OtpSessionRecord>) {
 }
 
 export const twoFactorService = {
-  async sendLoginOtp(phone: string): Promise<OtpChallenge> {
+  async sendLoginOtp(phone: string, channel: 'sms' | 'whatsapp' = 'sms'): Promise<OtpChallenge> {
     const mode = getOtpMode()
 
     if (mode === 'api') {
       const res = await runWithCircuitBreaker(
         'otp_send',
         () =>
-          executeWithRetry(
-            () => api.post('/auth/otp/send', { phone, purpose: 'login' }),
-            { retries: 2, initialDelayMs: 350 },
-          ),
+          executeWithRetry(() => api.post('/auth/otp/send', { phone, purpose: 'login', channel }), {
+            retries: 2,
+            initialDelayMs: 350,
+          }),
         { threshold: 3, cooldownMs: 45000 },
       )
       return res.data.data as OtpChallenge
@@ -69,6 +69,7 @@ export const twoFactorService = {
       session_id: sessionId,
       destination_masked: maskPhone(phone),
       expires_at: expiresAt,
+      channel,
     }
   },
 
@@ -79,18 +80,15 @@ export const twoFactorService = {
       const res = await runWithCircuitBreaker(
         'otp_verify',
         () =>
-          executeWithRetry(
-            () => api.post('/auth/otp/verify', { session_id: sessionId, otp }),
-            {
-              retries: 2,
-              initialDelayMs: 250,
-              shouldRetry(error) {
-                const status = (error as { response?: { status?: number } })?.response?.status
-                if (status === 400 || status === 401 || status === 422) return false
-                return true
-              },
+          executeWithRetry(() => api.post('/auth/otp/verify', { session_id: sessionId, otp }), {
+            retries: 2,
+            initialDelayMs: 250,
+            shouldRetry(error) {
+              const status = (error as { response?: { status?: number } })?.response?.status
+              if (status === 400 || status === 401 || status === 422) return false
+              return true
             },
-          ),
+          }),
         {
           threshold: 3,
           cooldownMs: 45000,
@@ -126,5 +124,38 @@ export const twoFactorService = {
       writeDemoSessions(sessions)
     }
     return { ok }
+  },
+
+  async loginDirect(email: string, password: string): Promise<OtpVerifyResult> {
+    const res = await runWithCircuitBreaker(
+      'login_direct',
+      () =>
+        executeWithRetry(() => api.post('/auth/login', { email, password }), {
+          retries: 2,
+          initialDelayMs: 250,
+          shouldRetry(error) {
+            const status = (error as { response?: { status?: number } })?.response?.status
+            if (status === 401 || status === 422) return false
+            return true
+          },
+        }),
+      {
+        threshold: 3,
+        cooldownMs: 45000,
+        shouldTrip(error) {
+          const status = (error as { response?: { status?: number } })?.response?.status
+          if (status === 401 || status === 422) return false
+          return true
+        },
+      },
+    )
+    const d = res.data?.data
+    if (!d?.verified) return { ok: false }
+    return {
+      ok: true,
+      access_token: d.access_token as string,
+      refresh_token: d.refresh_token as string,
+      user: d.user as AuthUser,
+    }
   },
 }

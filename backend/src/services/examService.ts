@@ -1,4 +1,4 @@
-import { prisma } from '../db/prisma'
+import type { PrismaClient } from '@prisma/client'
 
 function calcGrade(marks: number, maxMarks: number): string {
   const pct = (marks / maxMarks) * 100
@@ -11,15 +11,18 @@ function calcGrade(marks: number, maxMarks: number): string {
   return 'F'
 }
 
-export async function createExam(input: {
-  name: string
-  class_name: string
-  subject: string
-  date: string
-  max_marks: number
-  academic_year: string
-}) {
-  const row = await prisma.exam.create({
+export async function createExam(
+  db: PrismaClient,
+  input: {
+    name: string
+    class_name: string
+    subject: string
+    date: string
+    max_marks: number
+    academic_year: string
+  },
+) {
+  const row = await db.exam.create({
     data: {
       name: input.name,
       className: input.class_name,
@@ -40,24 +43,27 @@ export async function createExam(input: {
   }
 }
 
-export async function listExams(input: {
-  page: number
-  per_page: number
-  class_name?: string
-  academic_year?: string
-}) {
+export async function listExams(
+  db: PrismaClient,
+  input: {
+    page: number
+    per_page: number
+    class_name?: string
+    academic_year?: string
+  },
+) {
   const where = {
     ...(input.class_name ? { className: input.class_name } : {}),
     ...(input.academic_year ? { academicYear: input.academic_year } : {}),
   }
   const [rows, total] = await Promise.all([
-    prisma.exam.findMany({
+    db.exam.findMany({
       where,
       orderBy: [{ date: 'asc' }],
       skip: (input.page - 1) * input.per_page,
       take: input.per_page,
     }),
-    prisma.exam.count({ where }),
+    db.exam.count({ where }),
   ])
   return {
     items: rows.map((row) => ({
@@ -75,20 +81,23 @@ export async function listExams(input: {
   }
 }
 
-export async function deleteExam(id: number) {
-  await prisma.exam.delete({ where: { id: BigInt(id) } })
+export async function deleteExam(db: PrismaClient, id: number) {
+  await db.exam.delete({ where: { id: BigInt(id) } })
 }
 
-export async function upsertExamResult(input: {
-  exam_id: number
-  student_id: number
-  marks_obtained: number
-}) {
-  const exam = await prisma.exam.findUnique({ where: { id: BigInt(input.exam_id) } })
+export async function upsertExamResult(
+  db: PrismaClient,
+  input: {
+    exam_id: number
+    student_id: number
+    marks_obtained: number
+  },
+) {
+  const exam = await db.exam.findUnique({ where: { id: BigInt(input.exam_id) } })
   if (!exam) throw new Error('Exam not found')
   const grade = calcGrade(input.marks_obtained, exam.maxMarks)
 
-  const row = await prisma.examResult.upsert({
+  const row = await db.examResult.upsert({
     where: { examId_studentId: { examId: BigInt(input.exam_id), studentId: BigInt(input.student_id) } },
     update: { marksObtained: input.marks_obtained, grade },
     create: {
@@ -113,8 +122,8 @@ export async function upsertExamResult(input: {
   }
 }
 
-export async function listExamResults(examId: number) {
-  const rows = await prisma.examResult.findMany({
+export async function listExamResults(db: PrismaClient, examId: number) {
+  const rows = await db.examResult.findMany({
     where: { examId: BigInt(examId) },
     include: {
       student: { select: { name: true, className: true, rollNumber: true } },

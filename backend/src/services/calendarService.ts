@@ -1,15 +1,18 @@
-import { prisma } from '../db/prisma'
+import type { PrismaClient } from '@prisma/client'
 
 type EventType = 'holiday' | 'exam' | 'event' | 'pta' | 'sports'
 
-export async function createCalendarEvent(input: {
-  title: string
-  date: string
-  end_date?: string | null
-  type: EventType
-  description?: string | null
-}) {
-  const row = await prisma.calendarEvent.create({
+export async function createCalendarEvent(
+  db: PrismaClient,
+  input: {
+    title: string
+    date: string
+    end_date?: string | null
+    type: EventType
+    description?: string | null
+  },
+) {
+  const row = await db.calendarEvent.create({
     data: {
       title: input.title,
       date: new Date(input.date),
@@ -28,13 +31,16 @@ export async function createCalendarEvent(input: {
   }
 }
 
-export async function listCalendarEvents(input: {
-  page: number
-  per_page: number
-  type?: EventType
-  from?: string
-  to?: string
-}) {
+export async function listCalendarEvents(
+  db: PrismaClient,
+  input: {
+    page: number
+    per_page: number
+    type?: EventType
+    from?: string
+    to?: string
+  },
+) {
   const where = {
     ...(input.type ? { type: input.type } : {}),
     ...(input.from || input.to
@@ -47,13 +53,13 @@ export async function listCalendarEvents(input: {
       : {}),
   }
   const [rows, total] = await Promise.all([
-    prisma.calendarEvent.findMany({
+    db.calendarEvent.findMany({
       where,
       orderBy: [{ date: 'asc' }],
       skip: (input.page - 1) * input.per_page,
       take: input.per_page,
     }),
-    prisma.calendarEvent.count({ where }),
+    db.calendarEvent.count({ where }),
   ])
   return {
     items: rows.map((row) => ({
@@ -70,6 +76,6 @@ export async function listCalendarEvents(input: {
   }
 }
 
-export async function deleteCalendarEvent(id: number) {
-  await prisma.calendarEvent.delete({ where: { id: BigInt(id) } })
+export async function deleteCalendarEvent(db: PrismaClient, id: number) {
+  await db.calendarEvent.delete({ where: { id: BigInt(id) } })
 }

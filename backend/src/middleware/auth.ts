@@ -60,3 +60,24 @@ export function requireRole(roles: AppRole[]) {
     next()
   }
 }
+
+export function requireRoot(req: Request, res: Response, next: NextFunction) {
+  if (!req.auth) {
+    res.status(401).json({
+      error: { code: 'UNAUTHORIZED', message: 'Missing auth context' },
+    })
+    return
+  }
+
+  if (!req.auth.isRoot) {
+    res.status(403).json({
+      error: {
+        code: 'ROOT_REQUIRED',
+        message: 'This operation requires Master SuperAdmin status.',
+      },
+    })
+    return
+  }
+
+  next()
+}

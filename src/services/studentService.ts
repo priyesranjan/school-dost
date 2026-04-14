@@ -15,7 +15,7 @@ export const studentService = {
   },
 
   update(id: number, data: Partial<Student>): Promise<ApiResponse<Student>> {
-    return api.put(`/students/${id}`, data).then((r) => r.data)
+    return api.patch(`/students/${id}`, data).then((r) => r.data)
   },
 
   delete(id: number): Promise<ApiResponse<null>> {

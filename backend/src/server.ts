@@ -10,6 +10,9 @@ import { getDashboardSummary } from './services/dashboardService'
 // Route modules
 import authRoutes from './routes/auth.routes'
 import studentsRoutes from './routes/students.routes'
+import staffRoutes from './routes/staff.routes'
+import backupRoutes from './routes/backup.routes'
+import maintenanceRoutes from './routes/maintenance.routes'
 import feesRoutes from './routes/fees.routes'
 import attendanceRoutes from './routes/attendance.routes'
 import certificatesRoutes from './routes/certificates.routes'
@@ -19,34 +22,49 @@ import auditRoutes from './routes/audit.routes'
 import storageRoutes from './routes/storage.routes'
 import examsRoutes from './routes/exams.routes'
 import calendarRoutes from './routes/calendar.routes'
+import superadminRoutes from './routes/superadmin.routes'
+import superadminTeamRoutes from './routes/superadminTeam.routes'
+import { resolveTenant, requireSchoolContext, requireAnyContext } from './middleware/tenantResolver'
 
 const app = express()
 
 // ── Security Middleware ──────────────────────────────────────────────
-app.use(helmet({
-  contentSecurityPolicy: env.nodeEnv === 'production' ? undefined : false,
-}))
+app.use(
+  helmet({
+    contentSecurityPolicy: env.nodeEnv === 'production' ? undefined : false,
+  }),
+)
 
 // Fix #7: Lock down CORS in production
-const allowedOrigins = env.nodeEnv === 'production'
-  ? (process.env.ALLOWED_ORIGINS || '').split(',').map(o => o.trim()).filter(Boolean)
-  : ['http://localhost:3000', 'http://localhost:5173']
+const allowedOrigins =
+  env.nodeEnv === 'production'
+    ? (process.env.ALLOWED_ORIGINS || '')
+        .split(',')
+        .map((o) => o.trim())
+        .filter(Boolean)
+    : ['http://localhost:3000', 'http://localhost:5173']
 
-app.use(cors({
-  origin: (origin, callback) => {
-    // Allow requests with no origin (mobile apps, curl, etc.)
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true)
-    } else {
-      callback(new Error('Not allowed by CORS'))
-    }
-  },
-  credentials: true,
-}))
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (mobile apps, curl, etc.)
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true)
+      } else {
+        callback(new Error('Not allowed by CORS'))
+      }
+    },
+    credentials: true,
+  }),
+)
 
 // Fix #9: Body size limit (1MB max)
 app.use(express.json({ limit: '1mb' }))
 app.use(requestLogger)
+
+// ── Tenant Resolution (runs before all school routes) ────────────────────────
+// Reads subdomain → finds tenant DB → attaches req.tenantDb
+app.use(resolveTenant)
 
 // ── Health & DB ──────────────────────────────────────────────────────
 app.get('/api/health', (_req, res) => {
@@ -71,9 +89,9 @@ app.get('/api/db/ping', async (_req, res) => {
 })
 
 // ── Dashboard ────────────────────────────────────────────────────────
-app.get('/api/dashboard/summary', requireAuth, async (_req, res) => {
+app.get('/api/dashboard/summary', requireSchoolContext, requireAuth, async (req, res) => {
   try {
-    const data = await getDashboardSummary()
+    const data = await getDashboardSummary(req.tenantDb!)
     res.json({ data })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to load dashboard summary'
@@ -82,17 +100,23 @@ app.get('/api/dashboard/summary', requireAuth, async (_req, res) => {
 })
 
 // ── Modular Route Mounts ─────────────────────────────────────────────
-app.use('/api/auth', authRoutes)
-app.use('/api/students', studentsRoutes)
-app.use('/api/fees', feesRoutes)
-app.use('/api/attendance', attendanceRoutes)
-app.use('/api/certificates', certificatesRoutes)
-app.use('/api/notices', noticesRoutes)
-app.use('/api/timetable', timetableRoutes)
-app.use('/api/audit', auditRoutes)
-app.use('/api/storage', storageRoutes)
-app.use('/api/exams', examsRoutes)
-app.use('/api/calendar', calendarRoutes)
+app.use('/api/auth', requireAnyContext, authRoutes)
+app.use('/api/students', requireSchoolContext, studentsRoutes)
+app.use('/api/staff', requireSchoolContext, staffRoutes)
+app.use('/api/backups', backupRoutes)
+app.use('/api/maintenance', requireSchoolContext, maintenanceRoutes)
+app.use('/api/fees', requireSchoolContext, feesRoutes)
+app.use('/api/attendance', requireSchoolContext, attendanceRoutes)
+app.use('/api/certificates', requireSchoolContext, certificatesRoutes)
+app.use('/api/notices', requireSchoolContext, noticesRoutes)
+app.use('/api/timetable', requireSchoolContext, timetableRoutes)
+app.use('/api/audit', requireSchoolContext, auditRoutes)
+app.use('/api/storage', requireSchoolContext, storageRoutes)
+app.use('/api/exams', requireSchoolContext, examsRoutes)
+app.use('/api/calendar', requireSchoolContext, calendarRoutes)
+// ── Platform-level SuperAdmin Routes (no tenant context) ─────────────────────
+app.use('/api/superadmin', superadminRoutes)
+app.use('/api/superadmin/team', superadminTeamRoutes)
 
 // ── Global Error Handler ─────────────────────────────────────────────
 app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

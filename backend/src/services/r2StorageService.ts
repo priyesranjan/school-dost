@@ -5,7 +5,9 @@ import { env } from '../config/env'
 function ensureR2Configured() {
   const cfg = env.r2
   if (!cfg.accountId || !cfg.accessKeyId || !cfg.secretAccessKey || !cfg.bucket) {
-    throw new Error('R2 is not fully configured. Set R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, and R2_BUCKET.')
+    throw new Error(
+      'R2 is not fully configured. Set R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, and R2_BUCKET.',
+    )
   }
 }
 
@@ -44,4 +46,29 @@ export async function signUploadUrl(objectKey: string, contentType: string) {
     upload_url: uploadUrl,
     public_url: buildPublicUrl(objectKey),
   }
+}
+
+export async function directUpload(objectKey: string, body: Buffer | Uint8Array, contentType: string) {
+  const client = createR2Client()
+  await client.send(
+    new PutObjectCommand({
+      Bucket: env.r2.bucket,
+      Key: objectKey,
+      Body: body,
+      ContentType: contentType,
+    }),
+  )
+  return buildPublicUrl(objectKey)
+}
+
+import { GetObjectCommand } from '@aws-sdk/client-s3'
+export async function getDownloadStream(objectKey: string) {
+  const client = createR2Client()
+  const res = await client.send(
+    new GetObjectCommand({
+      Bucket: env.r2.bucket,
+      Key: objectKey,
+    }),
+  )
+  return res.Body
 }

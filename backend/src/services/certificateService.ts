@@ -1,15 +1,18 @@
-import { prisma } from '../db/prisma'
+import type { PrismaClient } from '@prisma/client'
 
-export async function issueCertificate(input: {
-  certificate_no: string
-  student_id: number
-  type: 'tc' | 'character'
-  issue_date: string
-  issued_by: string
-  reason?: string | null
-  conduct?: string | null
-}) {
-  const cert = await prisma.certificate.create({
+export async function issueCertificate(
+  db: PrismaClient,
+  input: {
+    certificate_no: string
+    student_id: number
+    type: 'tc' | 'character'
+    issue_date: string
+    issued_by: string
+    reason?: string | null
+    conduct?: string | null
+  },
+) {
+  const cert = await db.certificate.create({
     data: {
       certificateNo: input.certificate_no,
       studentId: BigInt(input.student_id),
@@ -33,8 +36,8 @@ export async function issueCertificate(input: {
   }
 }
 
-export async function verifyCertificateByNumber(certificateNo: string) {
-  const cert = await prisma.certificate.findUnique({
+export async function verifyCertificateByNumber(db: PrismaClient, certificateNo: string) {
+  const cert = await db.certificate.findUnique({
     where: { certificateNo },
     include: {
       student: {

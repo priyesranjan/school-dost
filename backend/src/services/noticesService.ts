@@ -1,15 +1,18 @@
-import { prisma } from '../db/prisma'
+import type { PrismaClient } from '@prisma/client'
 
 type Audience = 'all' | 'class'
 
-export async function createNotice(input: {
-  title: string
-  message: string
-  audience: Audience
-  class_name?: string | null
-  send_sms?: boolean
-}) {
-  const notice = await prisma.notice.create({
+export async function createNotice(
+  db: PrismaClient,
+  input: {
+    title: string
+    message: string
+    audience: Audience
+    class_name?: string | null
+    send_sms?: boolean
+  },
+) {
+  const notice = await db.notice.create({
     data: {
       title: input.title,
       message: input.message,
@@ -32,13 +35,16 @@ export async function createNotice(input: {
   }
 }
 
-export async function listNotices(input: {
-  page: number
-  per_page: number
-  status?: 'draft' | 'approved' | 'scheduled' | 'published' | 'rejected'
-  audience?: 'all' | 'class'
-  class_name?: string
-}) {
+export async function listNotices(
+  db: PrismaClient,
+  input: {
+    page: number
+    per_page: number
+    status?: 'draft' | 'approved' | 'scheduled' | 'published' | 'rejected'
+    audience?: 'all' | 'class'
+    class_name?: string
+  },
+) {
   const where = {
     ...(input.status ? { status: input.status } : {}),
     ...(input.audience ? { audience: input.audience } : {}),
@@ -46,13 +52,13 @@ export async function listNotices(input: {
   }
 
   const [rows, total] = await Promise.all([
-    prisma.notice.findMany({
+    db.notice.findMany({
       where,
       orderBy: [{ createdAt: 'desc' }],
       skip: (input.page - 1) * input.per_page,
       take: input.per_page,
     }),
-    prisma.notice.count({ where }),
+    db.notice.count({ where }),
   ])
 
   return {

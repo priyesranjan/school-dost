@@ -1,20 +1,22 @@
-import { Prisma } from '@prisma/client'
-import { prisma } from '../db/prisma'
+import { Prisma, type PrismaClient } from '@prisma/client'
 
 type TimetableDay = 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday'
 
-export async function createTimetableEntry(input: {
-  class_name: string
-  day: TimetableDay
-  period: string
-  subject: string
-  teacher: string
-  start_time: string
-  end_time: string
-  send_sms?: boolean
-}) {
+export async function createTimetableEntry(
+  db: PrismaClient,
+  input: {
+    class_name: string
+    day: TimetableDay
+    period: string
+    subject: string
+    teacher: string
+    start_time: string
+    end_time: string
+    send_sms?: boolean
+  },
+) {
   try {
-    const entry = await prisma.timetableEntry.create({
+    const entry = await db.timetableEntry.create({
       data: {
         className: input.class_name,
         day: input.day,
@@ -53,25 +55,28 @@ export async function createTimetableEntry(input: {
   }
 }
 
-export async function listTimetableEntries(input: {
-  page: number
-  per_page: number
-  class_name?: string
-  day?: TimetableDay
-}) {
+export async function listTimetableEntries(
+  db: PrismaClient,
+  input: {
+    page: number
+    per_page: number
+    class_name?: string
+    day?: TimetableDay
+  },
+) {
   const where = {
     ...(input.class_name ? { className: input.class_name } : {}),
     ...(input.day ? { day: input.day } : {}),
   }
 
   const [rows, total] = await Promise.all([
-    prisma.timetableEntry.findMany({
+    db.timetableEntry.findMany({
       where,
       orderBy: [{ className: 'asc' }, { day: 'asc' }, { period: 'asc' }],
       skip: (input.page - 1) * input.per_page,
       take: input.per_page,
     }),
-    prisma.timetableEntry.count({ where }),
+    db.timetableEntry.count({ where }),
   ])
 
   return {

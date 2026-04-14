@@ -1,9 +1,10 @@
 import { Router } from 'express'
 import { otpSendLimiter, otpVerifyLimiter } from '../middleware/rateLimit'
 import { validateBody } from '../middleware/validation'
-import { otpSendSchema, otpVerifySchema, refreshTokenSchema, logoutSchema } from '../validation/schemas'
+import { loginSchema, otpSendSchema, otpVerifySchema, refreshTokenSchema, logoutSchema } from '../validation/schemas'
 import { requireAuth } from '../middleware/auth'
 import { sendOtp, verifyOtp } from '../services/otpService'
+import { loginWithPassword } from '../services/authService'
 import {
   listRefreshSessionsForUser,
   revokeAllRefreshTokensForUser,
@@ -14,11 +15,29 @@ import {
 
 const router = Router()
 
-router.post('/otp/send', otpSendLimiter, validateBody(otpSendSchema), async (req, res) => {
-  const body = req.body as { phone: string; purpose: 'login' }
-  const phone = body.phone.trim()
+router.get('/ping', (req, res) => res.json({ ping: 'pong' }))
+
+router.post('/login', otpVerifyLimiter, validateBody(loginSchema), async (req, res) => {
+  const body = req.body as { email: string; password: string }
   try {
-    const data = await sendOtp(phone, 'login')
+    const result = await loginWithPassword(req.tenantDb!, body.email, body.password, req.tenantSlug || '')
+    if (!result.ok) {
+      res.status(401).json({ error: { code: result.code, message: result.message } })
+      return
+    }
+    res.json({ data: result.data })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Login failed'
+    res.status(500).json({ error: { code: 'LOGIN_FAILED', message } })
+  }
+})
+
+router.post('/otp/send', otpSendLimiter, validateBody(otpSendSchema), async (req, res) => {
+  const body = req.body as { phone: string; purpose: 'login'; channel?: 'sms' | 'whatsapp' }
+  const phone = body.phone.trim()
+  const channel = body.channel === 'whatsapp' ? 'whatsapp' : 'sms'
+  try {
+    const data = await sendOtp(req.tenantDb!, phone, 'login', channel)
     res.json({ data })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to send OTP'
@@ -31,7 +50,7 @@ router.post('/otp/verify', otpVerifyLimiter, validateBody(otpVerifySchema), asyn
   const sessionId = body.session_id.trim()
   const otp = body.otp.trim()
   try {
-    const result = await verifyOtp(sessionId, otp)
+    const result = await verifyOtp(req.tenantDb!, sessionId, otp, req.tenantSlug || '')
     if (!result.ok) {
       res.status(400).json({ error: { code: result.code, message: result.message } })
       return
@@ -46,7 +65,7 @@ router.post('/otp/verify', otpVerifyLimiter, validateBody(otpVerifySchema), asyn
 router.post('/refresh', otpVerifyLimiter, validateBody(refreshTokenSchema), async (req, res) => {
   const body = req.body as { refresh_token: string }
   try {
-    const result = await rotateRefreshToken(body.refresh_token)
+    const result = await rotateRefreshToken(req.tenantDb!, body.refresh_token)
     if (!result.ok) {
       res.status(401).json({ error: { code: result.code, message: result.message } })
       return
@@ -61,7 +80,7 @@ router.post('/refresh', otpVerifyLimiter, validateBody(refreshTokenSchema), asyn
 router.post('/logout', validateBody(logoutSchema), async (req, res) => {
   const body = req.body as { refresh_token: string }
   try {
-    await revokeRefreshToken(body.refresh_token)
+    await revokeRefreshToken(req.tenantDb!, body.refresh_token)
     res.json({ data: { ok: true } })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to logout'
@@ -71,7 +90,7 @@ router.post('/logout', validateBody(logoutSchema), async (req, res) => {
 
 router.post('/logout-all', requireAuth, async (req, res) => {
   try {
-    const data = await revokeAllRefreshTokensForUser(req.auth!.sub)
+    const data = await revokeAllRefreshTokensForUser(req.tenantDb!, req.auth!.sub)
     res.json({ data })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to logout all sessions'
@@ -81,7 +100,7 @@ router.post('/logout-all', requireAuth, async (req, res) => {
 
 router.get('/sessions', requireAuth, async (req, res) => {
   try {
-    const data = await listRefreshSessionsForUser(req.auth!.sub)
+    const data = await listRefreshSessionsForUser(req.tenantDb!, req.auth!.sub)
     res.json({ data })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to list sessions'
@@ -91,7 +110,7 @@ router.get('/sessions', requireAuth, async (req, res) => {
 
 router.post('/sessions/:session_id/revoke', requireAuth, async (req, res) => {
   try {
-    const result = await revokeRefreshSessionById(req.auth!.sub, String(req.params.session_id || ''))
+    const result = await revokeRefreshSessionById(req.tenantDb!, req.auth!.sub, String(req.params.session_id || ''))
     if (!result.ok) {
       const status = result.code === 'INVALID_REQUEST' ? 400 : result.code === 'SESSION_NOT_FOUND' ? 404 : 409
       res.status(status).json({ error: { code: result.code, message: result.message } })

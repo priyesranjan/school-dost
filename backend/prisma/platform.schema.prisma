@@ -1,0 +1,160 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// PLATFORM MASTER DATABASE  (erp_platform)
+//
+// This is a SEPARATE schema from the tenant schema (schema.prisma).
+// Every school/college that onboards gets its own isolated database.
+// This master DB only tracks:
+//   - Which tenants exist
+//   - What DB each tenant connects to
+//   - Subscription status / billing
+//   - Platform-level audit log
+//
+// Connection:  PLATFORM_DATABASE_URL  (in env)
+// ─────────────────────────────────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/platform-client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("PLATFORM_DATABASE_URL")
+}
+
+enum TenantStatus {
+  active
+  trial
+  suspended
+  cancelled
+}
+
+enum TenantType {
+  school
+  college
+  coaching
+}
+
+enum SubscriptionPlan {
+  basic
+  standard
+  premium
+  enterprise
+}
+
+enum OtpPurpose {
+  login
+}
+
+// ── Core Tenant Registry ───────────────────────────────────────────────────
+model Tenant {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Identity
+  name    String
+  slug    String @unique   // dps-delhi  →  dps-delhi.yourERP.com
+  type    TenantType
+  board   String?          // CBSE, ICSE, State Board, etc.
+  logoUrl String?
+
+  // Location
+  city    String
+  state   String
+  country String @default("India")
+  address String?
+  pincode String?
+  phone   String?
+
+  // ── DATABASE ROUTING ──────────────────────────────────────────────────────
+  // Each tenant gets their OWN PostgreSQL database
+  dbName   String @unique   // e.g. "tenant_dps_delhi"
+  dbHost   String @default("localhost")
+  dbPort   Int    @default(5432)
+  // dbUser / dbPass are resolved from env at runtime — NOT stored in DB
+
+  // ── Subscription ──────────────────────────────────────────────────────────
+  plan               SubscriptionPlan @default(basic)
+  status             TenantStatus     @default(trial)
+  trialEndsAt        DateTime?
+  subscriptionStart  DateTime?
+  subscriptionEnd    DateTime?
+  monthlyFeeInr      Decimal?         @db.Decimal(10, 2)
+
+  // ── Admin Contact (first admin of the school) ─────────────────────────────
+  adminName  String
+  adminEmail String
+  adminPhone String?
+
+  // ── Usage Snapshot (updated periodically) ────────────────────────────────
+  totalStudents Int @default(0)
+  totalStaff    Int @default(0)
+
+  // ── Institution Code (used in enrollment numbers) ────────────────────────
+  institutionCode String @default("001")
+
+  // Relationships
+  auditLogs TenantAuditLog[]
+
+  @@index([status])
+  @@index([slug])
+}
+
+// ── Platform Audit Log ────────────────────────────────────────────────────
+model TenantAuditLog {
+  id         BigInt   @id @default(autoincrement())
+  createdAt  DateTime @default(now())
+  tenantId   String
+  action     String   // ONBOARD, SUSPEND, ACTIVATE, PLAN_CHANGE, DB_PROVISION
+  performedBy String  // superadmin email
+  details    Json?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([createdAt])
+}
+
+// ── Superadmin Users ──────────────────────────────────────────────────────
+// Platform owners who can manage all tenants
+model SuperAdmin {
+  id           BigInt   @id @default(autoincrement())
+  createdAt    DateTime @default(now())
+  name         String
+  email        String   @unique
+  passwordHash String
+  lastLoginAt  DateTime?
+  isActive     Boolean  @default(true)
+}
+
+// ── Authentication Sessions (Platform-level) ────────────────────────────────
+model OtpSession {
+  id                BigInt     @id @default(autoincrement())
+  sessionId         String     @unique
+  purpose           OtpPurpose @default(login)
+  phone             String
+  destinationMasked String
+  expiresAt         DateTime
+  attempts          Int        @default(0)
+  otpCode           String?
+  verifiedAt        DateTime?
+  createdAt         DateTime   @default(now())
+
+  @@index([phone])
+  @@index([expiresAt])
+}
+
+model RefreshToken {
+  id        BigInt    @id @default(autoincrement())
+  tokenHash String    @unique
+  userSub   String
+  name      String
+  role      String
+  email     String
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userSub, expiresAt])
+}

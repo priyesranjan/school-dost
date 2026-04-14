@@ -1,13 +1,15 @@
-import { Prisma } from '@prisma/client'
-import { prisma } from '../db/prisma'
+import { Prisma, type PrismaClient } from '@prisma/client'
 
-export async function createAttendance(input: {
-  student_id: number
-  date: string
-  status: 'present' | 'absent' | 'late'
-}) {
+export async function createAttendance(
+  db: PrismaClient,
+  input: {
+    student_id: number
+    date: string
+    status: 'present' | 'absent' | 'late'
+  },
+) {
   try {
-    const row = await prisma.attendanceRecord.create({
+    const row = await db.attendanceRecord.create({
       data: {
         studentId: BigInt(input.student_id),
         date: new Date(input.date),
@@ -36,12 +38,15 @@ export async function createAttendance(input: {
   }
 }
 
-export async function bulkCreateAttendance(records: { student_id: number; date: string; status: 'present' | 'absent' | 'late' }[]) {
+export async function bulkCreateAttendance(
+  db: PrismaClient,
+  records: { student_id: number; date: string; status: 'present' | 'absent' | 'late' }[],
+) {
   const results: { ok: boolean; student_id: number; date: string; status: string; error?: string }[] = []
 
   for (const rec of records) {
     try {
-      const row = await prisma.attendanceRecord.upsert({
+      const row = await db.attendanceRecord.upsert({
         where: {
           studentId_date: {
             studentId: BigInt(rec.student_id),
@@ -55,22 +60,36 @@ export async function bulkCreateAttendance(records: { student_id: number; date: 
           status: rec.status,
         },
       })
-      results.push({ ok: true, student_id: Number(row.studentId), date: row.date.toISOString().slice(0, 10), status: row.status })
+      results.push({
+        ok: true,
+        student_id: Number(row.studentId),
+        date: row.date.toISOString().slice(0, 10),
+        status: row.status,
+      })
     } catch (err) {
-      results.push({ ok: false, student_id: rec.student_id, date: rec.date, status: rec.status, error: err instanceof Error ? err.message : 'Failed' })
+      results.push({
+        ok: false,
+        student_id: rec.student_id,
+        date: rec.date,
+        status: rec.status,
+        error: err instanceof Error ? err.message : 'Failed',
+      })
     }
   }
 
   return { results, total: records.length, saved: results.filter((r) => r.ok).length }
 }
 
-export async function listAttendance(input: {
-  page: number
-  per_page: number
-  student_id?: number
-  date?: string
-  status?: 'present' | 'absent' | 'late'
-}) {
+export async function listAttendance(
+  db: PrismaClient,
+  input: {
+    page: number
+    per_page: number
+    student_id?: number
+    date?: string
+    status?: 'present' | 'absent' | 'late'
+  },
+) {
   const where = {
     ...(input.student_id ? { studentId: BigInt(input.student_id) } : {}),
     ...(input.status ? { status: input.status } : {}),
@@ -85,7 +104,7 @@ export async function listAttendance(input: {
   }
 
   const [rows, total] = await Promise.all([
-    prisma.attendanceRecord.findMany({
+    db.attendanceRecord.findMany({
       where,
       include: {
         student: {
@@ -96,7 +115,7 @@ export async function listAttendance(input: {
       skip: (input.page - 1) * input.per_page,
       take: input.per_page,
     }),
-    prisma.attendanceRecord.count({ where }),
+    db.attendanceRecord.count({ where }),
   ])
 
   return {

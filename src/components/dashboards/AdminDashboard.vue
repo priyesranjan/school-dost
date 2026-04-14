@@ -1,319 +1,699 @@
 <template>
-  <div class="space-y-8 animate-fade-in-up">
+  <div class="animate-fade-in-up">
     <!-- Welcome Header -->
-    <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-      <div>
-        <h1 class="text-3xl font-extrabold tracking-tight text-gray-900 dark:text-white capitalize">
-          Welcome back, <span class="bg-gradient-to-r from-primary-600 to-primary-400 bg-clip-text text-transparent">{{ authStore.user?.role }}</span>! 👋
-        </h1>
-        <p class="mt-1 text-sm font-medium text-gray-500 dark:text-gray-400">
-          {{ currentDate }} · <span class="font-bold text-gray-700 dark:text-gray-300">{{ authStore.user?.name }}</span>, here's the school's overview.
-        </p>
-      </div>
-      <div class="flex items-center gap-3">
-        <button class="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
-          📅 Academic Calendar
-        </button>
-        <router-link to="/settings" class="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-600 text-white shadow-lg shadow-primary-200 transition-all hover:bg-primary-700 hover:shadow-primary-300 dark:shadow-none">
-          ⚙️
-        </router-link>
-      </div>
+    <div class="mb-6">
+      <h1 class="text-2xl font-bold text-gray-900 dark:text-white">
+        Welcome back, <span class="text-primary-600 dark:text-primary-400">{{ authStore.user?.name || 'Admin' }}</span
+        >!
+      </h1>
+      <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+        {{ currentDate }} &middot; Here's the school overview.
+      </p>
     </div>
 
-    <!-- Stats Row -->
-    <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-      <StatCard
-        title="Total Students"
-        :value="studentStore.students.length"
-        icon="👨‍🎓"
-        icon-bg="bg-blue-100/50 dark:bg-blue-900/20"
-        value-color="text-blue-700 dark:text-blue-400"
-        :trend="5"
-      />
-      <StatCard
-        title="Fees Collected"
-        :value="feeStore.totalCollected"
-        icon="💰"
-        icon-bg="bg-green-100/50 dark:bg-green-900/20"
-        value-color="text-green-700 dark:text-green-400"
-        :is-currency="true"
-        :trend="12"
-      />
-      <StatCard
-        title="Pending Fees"
-        :value="feeStore.totalPending"
-        icon="⚠️"
-        icon-bg="bg-amber-100/50 dark:bg-amber-900/20"
-        value-color="text-amber-700 dark:text-amber-400"
-        :is-currency="true"
-      />
-      <StatCard
-        title="Attendance Rate"
-        :value="attendanceStore.todayStats.percentage + '%'"
-        icon="📊"
-        icon-bg="bg-purple-100/50 dark:bg-purple-900/20"
-        value-color="text-purple-700 dark:text-purple-400"
-        :subtitle="`${attendanceStore.todayStats.present} students present today`"
-      />
-    </div>
-
-    <div class="grid grid-cols-1 gap-8 lg:grid-cols-3">
-      <!-- Fee Collection Chart Area -->
-      <AppCard title="Fee Collection Trends" class="lg:col-span-2 overflow-hidden shadow-sm dark:bg-gray-800/50">
-        <template #header>
-          <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-gray-400">
-            <span class="inline-block h-2 w-2 rounded-full bg-primary-500"></span> Expected Collection
+    <div class="flex gap-6">
+      <!-- ===== Main Content ===== -->
+      <div class="flex-1 min-w-0 space-y-6">
+        <!-- Stat Cards Row -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div
+            class="rounded-xl bg-white dark:bg-gray-800 p-5 shadow-sm border border-gray-100 dark:border-gray-700 flex items-center gap-4"
+          >
+            <div
+              class="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30"
+            >
+              <svg class="h-7 w-7 text-blue-600 dark:text-blue-400" fill="currentColor" viewBox="0 0 24 24">
+                <path
+                  d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"
+                />
+              </svg>
+            </div>
+            <div>
+              <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Total Students</p>
+              <p class="text-2xl font-bold text-gray-900 dark:text-white">
+                {{ studentStore.students.length.toLocaleString() }}
+              </p>
+            </div>
           </div>
-        </template>
-        <div class="mt-6 space-y-6">
-          <div class="flex items-end gap-3 h-56 px-2">
-            <div v-for="(month, i) in chartData" :key="i" class="group relative flex flex-1 flex-col items-center gap-2">
-              <div class="w-full rounded-t-xl bg-gray-100 dark:bg-gray-700 relative overflow-hidden h-full group-hover:bg-gray-200 dark:group-hover:bg-gray-600 transition-colors">
-                <div 
-                  class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-primary-600 to-primary-400 rounded-t-xl transition-all duration-700 ease-out" 
-                  :style="{ height: (month.collected / maxChart * 100) + '%' }"
-                >
-                  <div class="absolute top-2 w-full text-center text-[10px] font-bold text-white opacity-0 group-hover:opacity-100 transition-opacity">
-                    {{ Math.round(month.collected / 1000) }}k
-                  </div>
+          <div
+            class="rounded-xl bg-white dark:bg-gray-800 p-5 shadow-sm border border-gray-100 dark:border-gray-700 flex items-center gap-4"
+          >
+            <div
+              class="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-purple-100 dark:bg-purple-900/30"
+            >
+              <svg class="h-7 w-7 text-purple-600 dark:text-purple-400" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82zM12 3L1 9l11 6 9-4.91V17h2V9L12 3z" />
+              </svg>
+            </div>
+            <div>
+              <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Total Teachers</p>
+              <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ teacherCount }}</p>
+            </div>
+          </div>
+          <div
+            class="rounded-xl bg-white dark:bg-gray-800 p-5 shadow-sm border border-gray-100 dark:border-gray-700 flex items-center gap-4"
+          >
+            <div
+              class="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30"
+            >
+              <svg class="h-7 w-7 text-green-600 dark:text-green-400" fill="currentColor" viewBox="0 0 24 24">
+                <path
+                  d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"
+                />
+              </svg>
+            </div>
+            <div>
+              <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Working Staff</p>
+              <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ staffCount }}</p>
+            </div>
+          </div>
+          <div
+            class="rounded-xl bg-white dark:bg-gray-800 p-5 shadow-sm border border-gray-100 dark:border-gray-700 flex items-center gap-4"
+          >
+            <div
+              class="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-orange-100 dark:bg-orange-900/30"
+            >
+              <svg class="h-7 w-7 text-orange-600 dark:text-orange-400" fill="currentColor" viewBox="0 0 24 24">
+                <path
+                  d="M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z"
+                />
+              </svg>
+            </div>
+            <div>
+              <p class="text-sm font-medium text-gray-500 dark:text-gray-400">This Month Events</p>
+              <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ thisMonthEventCount }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Attendance Donut Charts Row -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <!-- Student Attendance -->
+          <div class="rounded-xl bg-white dark:bg-gray-800 p-5 shadow-sm border border-gray-100 dark:border-gray-700">
+            <h3 class="text-base font-semibold text-gray-900 dark:text-white mb-4">Student Attendance</h3>
+            <div class="flex items-center justify-center">
+              <div class="relative h-40 w-40">
+                <svg class="h-full w-full -rotate-90" viewBox="0 0 100 100">
+                  <circle
+                    class="text-red-200 dark:text-red-900/40"
+                    stroke-width="12"
+                    stroke="currentColor"
+                    fill="transparent"
+                    r="38"
+                    cx="50"
+                    cy="50"
+                  />
+                  <circle
+                    class="text-green-500 transition-all duration-700"
+                    stroke-width="12"
+                    :stroke-dasharray="2 * Math.PI * 38"
+                    :stroke-dashoffset="2 * Math.PI * 38 * (1 - studentAttendance.presentPct / 100)"
+                    stroke-linecap="round"
+                    stroke="currentColor"
+                    fill="transparent"
+                    r="38"
+                    cx="50"
+                    cy="50"
+                  />
+                </svg>
+                <div class="absolute inset-0 flex flex-col items-center justify-center">
+                  <span class="text-2xl font-bold text-gray-900 dark:text-white"
+                    >{{ studentAttendance.presentPct }}%</span
+                  >
                 </div>
-                <!-- Expected marker -->
-                <div 
-                  class="absolute inset-x-2 border-t-2 border-dashed border-primary-300 transition-all duration-500"
-                  :style="{ bottom: (month.value / maxChart * 100) + '%' }"
+              </div>
+            </div>
+            <div class="mt-4 flex justify-center gap-6 text-sm text-gray-600 dark:text-gray-300">
+              <span class="flex items-center gap-2"
+                ><span class="h-3 w-3 rounded-full bg-green-500"></span> Present: {{ studentAttendance.present }}</span
+              >
+              <span class="flex items-center gap-2"
+                ><span class="h-3 w-3 rounded-full bg-red-400"></span> Absent: {{ studentAttendance.absent }}</span
+              >
+            </div>
+          </div>
+          <!-- Teachers Attendance -->
+          <div class="rounded-xl bg-white dark:bg-gray-800 p-5 shadow-sm border border-gray-100 dark:border-gray-700">
+            <h3 class="text-base font-semibold text-gray-900 dark:text-white mb-4">Teachers Attendance</h3>
+            <div class="flex items-center justify-center">
+              <div class="relative h-40 w-40">
+                <svg class="h-full w-full -rotate-90" viewBox="0 0 100 100">
+                  <circle
+                    class="text-red-200 dark:text-red-900/40"
+                    stroke-width="12"
+                    stroke="currentColor"
+                    fill="transparent"
+                    r="38"
+                    cx="50"
+                    cy="50"
+                  />
+                  <circle
+                    class="text-blue-500 transition-all duration-700"
+                    stroke-width="12"
+                    :stroke-dasharray="2 * Math.PI * 38"
+                    :stroke-dashoffset="2 * Math.PI * 38 * (1 - teacherAttendance.presentPct / 100)"
+                    stroke-linecap="round"
+                    stroke="currentColor"
+                    fill="transparent"
+                    r="38"
+                    cx="50"
+                    cy="50"
+                  />
+                </svg>
+                <div class="absolute inset-0 flex flex-col items-center justify-center">
+                  <span class="text-2xl font-bold text-gray-900 dark:text-white"
+                    >{{ teacherAttendance.presentPct }}%</span
+                  >
+                </div>
+              </div>
+            </div>
+            <div class="mt-4 flex justify-center gap-6 text-sm text-gray-600 dark:text-gray-300">
+              <span class="flex items-center gap-2"
+                ><span class="h-3 w-3 rounded-full bg-blue-500"></span> Present: {{ teacherAttendance.present }}</span
+              >
+              <span class="flex items-center gap-2"
+                ><span class="h-3 w-3 rounded-full bg-red-400"></span> Absent: {{ teacherAttendance.absent }}</span
+              >
+            </div>
+          </div>
+          <!-- Staff Attendance -->
+          <div class="rounded-xl bg-white dark:bg-gray-800 p-5 shadow-sm border border-gray-100 dark:border-gray-700">
+            <h3 class="text-base font-semibold text-gray-900 dark:text-white mb-4">Staff Attendance</h3>
+            <div class="flex items-center justify-center">
+              <div class="relative h-40 w-40">
+                <svg class="h-full w-full -rotate-90" viewBox="0 0 100 100">
+                  <circle
+                    class="text-red-200 dark:text-red-900/40"
+                    stroke-width="12"
+                    stroke="currentColor"
+                    fill="transparent"
+                    r="38"
+                    cx="50"
+                    cy="50"
+                  />
+                  <circle
+                    class="text-purple-500 transition-all duration-700"
+                    stroke-width="12"
+                    :stroke-dasharray="2 * Math.PI * 38"
+                    :stroke-dashoffset="2 * Math.PI * 38 * (1 - staffAttendanceData.presentPct / 100)"
+                    stroke-linecap="round"
+                    stroke="currentColor"
+                    fill="transparent"
+                    r="38"
+                    cx="50"
+                    cy="50"
+                  />
+                </svg>
+                <div class="absolute inset-0 flex flex-col items-center justify-center">
+                  <span class="text-2xl font-bold text-gray-900 dark:text-white"
+                    >{{ staffAttendanceData.presentPct }}%</span
+                  >
+                </div>
+              </div>
+            </div>
+            <div class="mt-4 flex justify-center gap-6 text-sm text-gray-600 dark:text-gray-300">
+              <span class="flex items-center gap-2"
+                ><span class="h-3 w-3 rounded-full bg-purple-500"></span> Present:
+                {{ staffAttendanceData.present }}</span
+              >
+              <span class="flex items-center gap-2"
+                ><span class="h-3 w-3 rounded-full bg-red-400"></span> Absent: {{ staffAttendanceData.absent }}</span
+              >
+            </div>
+          </div>
+        </div>
+
+        <!-- Student Directory Table -->
+        <div
+          class="rounded-xl bg-white dark:bg-gray-800 shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden"
+        >
+          <div class="p-5 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+            <h3 class="text-base font-semibold text-gray-900 dark:text-white">Student Directory</h3>
+            <router-link
+              to="/students"
+              class="text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400 font-medium"
+              >View All &rarr;</router-link
+            >
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="bg-gray-50 dark:bg-gray-700/50 text-left">
+                  <th class="px-5 py-3 font-semibold text-gray-600 dark:text-gray-300">Student Name</th>
+                  <th class="px-5 py-3 font-semibold text-gray-600 dark:text-gray-300">Parents Names</th>
+                  <th class="px-5 py-3 font-semibold text-gray-600 dark:text-gray-300">Phone</th>
+                  <th class="px-5 py-3 font-semibold text-gray-600 dark:text-gray-300">Class</th>
+                  <th class="px-5 py-3 font-semibold text-gray-600 dark:text-gray-300">Grade</th>
+                  <th class="px-5 py-3 font-semibold text-gray-600 dark:text-gray-300">Fee Status</th>
+                  <th class="px-5 py-3 font-semibold text-gray-600 dark:text-gray-300">Action</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-50 dark:divide-gray-700/50">
+                <tr
+                  v-for="student in directoryStudents"
+                  :key="student.id"
+                  class="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"
+                >
+                  <td class="px-5 py-3">
+                    <div class="flex items-center gap-3">
+                      <div
+                        class="h-8 w-8 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center text-sm font-bold text-primary-700 dark:text-primary-300"
+                      >
+                        {{ student.name.charAt(0) }}
+                      </div>
+                      <span class="font-medium text-gray-900 dark:text-white">{{ student.name }}</span>
+                    </div>
+                  </td>
+                  <td class="px-5 py-3 text-gray-600 dark:text-gray-400">{{ student.parent_name || '-' }}</td>
+                  <td class="px-5 py-3 text-gray-600 dark:text-gray-400">{{ student.phone || '-' }}</td>
+                  <td class="px-5 py-3 text-gray-600 dark:text-gray-400">{{ student.class_name }}</td>
+                  <td class="px-5 py-3">
+                    <span
+                      class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                      :class="getStudentGrade(student.id).color"
+                    >
+                      {{ getStudentGrade(student.id).grade }}
+                    </span>
+                  </td>
+                  <td class="px-5 py-3">
+                    <span
+                      class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold"
+                      :class="getStudentFeeStatus(student.id).color"
+                    >
+                      {{ getStudentFeeStatus(student.id).label }}
+                    </span>
+                  </td>
+                  <td class="px-5 py-3">
+                    <router-link
+                      :to="`/students/${student.id}`"
+                      class="text-primary-600 hover:text-primary-700 dark:text-primary-400 font-medium text-xs"
+                    >
+                      View
+                    </router-link>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Fees Collection Bar Chart -->
+        <div class="rounded-xl bg-white dark:bg-gray-800 p-5 shadow-sm border border-gray-100 dark:border-gray-700">
+          <div class="flex items-center justify-between mb-6">
+            <h3 class="text-base font-semibold text-gray-900 dark:text-white">Fees Collection</h3>
+            <div class="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
+              <span class="flex items-center gap-2"><span class="h-3 w-3 rounded bg-blue-500"></span> Total Fee</span>
+              <span class="flex items-center gap-2"
+                ><span class="h-3 w-3 rounded bg-green-500"></span> Collected Fee</span
+              >
+            </div>
+          </div>
+          <div class="flex items-end gap-8 h-52 px-4">
+            <div v-for="(q, idx) in quarterlyFees" :key="idx" class="flex-1 flex items-end gap-2 h-full">
+              <div class="flex-1 flex flex-col items-center gap-1 h-full justify-end">
+                <span class="text-[10px] font-bold text-gray-400">{{ formatK(q.total) }}</span>
+                <div
+                  class="w-full rounded-t-lg bg-blue-500 transition-all duration-700"
+                  :style="{ height: (q.total / maxFee) * 100 + '%', minHeight: '4px' }"
                 ></div>
               </div>
-              <span class="text-[10px] font-bold uppercase tracking-tighter text-gray-400 group-hover:text-primary-500 transition-colors">{{ month.label }}</span>
+              <div class="flex-1 flex flex-col items-center gap-1 h-full justify-end">
+                <span class="text-[10px] font-bold text-gray-400">{{ formatK(q.collected) }}</span>
+                <div
+                  class="w-full rounded-t-lg bg-green-500 transition-all duration-700"
+                  :style="{ height: (q.collected / maxFee) * 100 + '%', minHeight: '4px' }"
+                ></div>
+              </div>
             </div>
           </div>
-          <div class="flex items-center justify-between border-t border-gray-100 pt-4 dark:border-gray-700">
-            <div class="flex items-center gap-6 text-xs font-medium text-gray-500 dark:text-gray-400">
-              <span class="flex items-center gap-2">
-                <span class="h-3 w-3 rounded bg-gradient-to-tr from-primary-600 to-primary-400"></span> 
-                Collected
-              </span>
-              <span class="flex items-center gap-2">
-                <span class="h-0.5 w-4 border-t-2 border-dashed border-primary-300"></span> 
-                Target
-              </span>
-            </div>
-            <button class="text-xs font-bold text-primary-600 hover:text-primary-700 dark:text-primary-400">
-              View Breakdown →
-            </button>
+          <div class="flex justify-around mt-3 text-xs font-medium text-gray-500 dark:text-gray-400">
+            <span v-for="(q, idx) in quarterlyFees" :key="idx">{{ q.label }}</span>
           </div>
         </div>
-      </AppCard>
+      </div>
 
-      <!-- Today's Attendance Visual -->
-      <AppCard title="Today's Attendance" class="flex flex-col justify-between shadow-sm dark:bg-gray-800/50">
-        <div class="flex-1 flex flex-col items-center justify-center py-6">
-          <div class="relative h-48 w-48">
-            <!-- Circular Progress -->
-            <svg class="h-full w-full transform -rotate-90" viewBox="0 0 100 100">
-              <circle
-                class="text-gray-100 dark:text-gray-700"
-                stroke-width="10"
-                stroke="currentColor"
-                fill="transparent"
-                r="40"
-                cx="50"
-                cy="50"
-              />
-              <circle
-                :class="attendanceStore.todayStats.percentage >= 90 ? 'text-green-500' : 'text-amber-500'"
-                stroke-width="10"
-                :stroke-dasharray="2 * Math.PI * 40"
-                :stroke-dashoffset="2 * Math.PI * 40 * (1 - attendanceStore.todayStats.percentage / 100)"
-                stroke-linecap="round"
-                stroke="currentColor"
-                fill="transparent"
-                r="40"
-                cx="50"
-                cy="50"
-                class="transition-all duration-1000 ease-out"
-              />
-            </svg>
-            <div class="absolute inset-0 flex flex-col items-center justify-center">
-              <span class="text-4xl font-black text-gray-900 dark:text-white">{{ attendanceStore.todayStats.percentage }}%</span>
-              <span class="text-xs font-bold uppercase tracking-widest text-gray-400">Present</span>
+      <!-- ===== Right Sidebar ===== -->
+      <div class="hidden xl:block w-80 shrink-0 space-y-6">
+        <!-- Calendar Widget -->
+        <div class="rounded-xl bg-white dark:bg-gray-800 p-5 shadow-sm border border-gray-100 dark:border-gray-700">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ calendarMonthYear }}</h3>
+            <div class="flex gap-1">
+              <button
+                @click="calMonth--"
+                class="h-7 w-7 rounded-lg flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
+              >
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+              <button
+                @click="calMonth++"
+                class="h-7 w-7 rounded-lg flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
+              >
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
             </div>
           </div>
-          
-          <div class="mt-8 grid w-full grid-cols-2 gap-4">
-            <div class="rounded-2xl bg-gray-50 p-4 dark:bg-gray-700/30">
-              <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Present</p>
-              <p class="text-xl font-bold text-gray-900 dark:text-white">{{ attendanceStore.todayStats.present }}</p>
-            </div>
-            <div class="rounded-2xl bg-gray-50 p-4 dark:bg-gray-700/30">
-              <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Absent</p>
-              <p class="text-xl font-bold text-red-500">{{ (attendanceStore.todayStats.total || studentStore.students.length) - attendanceStore.todayStats.present }}</p>
+          <div class="grid grid-cols-7 gap-1 text-center text-[10px] font-bold text-gray-400 uppercase mb-1">
+            <span v-for="d in ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']" :key="d">{{ d }}</span>
+          </div>
+          <div class="grid grid-cols-7 gap-1">
+            <div
+              v-for="(day, i) in calendarDays"
+              :key="i"
+              class="h-8 flex items-center justify-center text-xs rounded-lg mx-auto"
+              :class="[
+                !day
+                  ? ''
+                  : day.isToday
+                    ? 'bg-primary-600 text-white font-bold w-8'
+                    : day.hasEvent
+                      ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300 font-medium w-8'
+                      : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 w-8',
+              ]"
+            >
+              {{ day?.date || '' }}
             </div>
           </div>
-        </div>
-      </AppCard>
-    </div>
-
-    <!-- Quick Actions -->
-    <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
-      <router-link
-        v-for="action in quickActions"
-        :key="action.path"
-        :to="action.path"
-        class="group flex flex-col items-center gap-3 rounded-2xl border border-gray-100 bg-white p-5 text-center transition-all hover:border-primary-100 hover:shadow-xl hover:-translate-y-1 dark:border-gray-700 dark:bg-gray-800 dark:hover:border-primary-900"
-      >
-        <div :class="['flex h-14 w-14 items-center justify-center rounded-2xl text-2xl transition-transform group-hover:scale-110 group-hover:rotate-6', action.bg]">
-          {{ action.icon }}
-        </div>
-        <div>
-          <p class="text-sm font-bold text-gray-900 dark:text-white">{{ action.title }}</p>
-          <p class="mt-0.5 text-[10px] font-medium text-gray-400 dark:text-gray-500 uppercase">{{ action.desc }}</p>
-        </div>
-      </router-link>
-    </div>
-
-    <div class="grid grid-cols-1 gap-8 lg:grid-cols-2">
-      <!-- Recent Payments -->
-      <AppCard title="Recent Transactions" :no-padding="true" class="shadow-sm dark:bg-gray-800/50">
-        <template #header>
-          <button class="text-xs font-bold text-primary-600 hover:text-primary-700">All Transactions →</button>
-        </template>
-        <div class="divide-y divide-gray-50 dark:divide-gray-700/50">
-          <div
-            v-for="payment in recentPayments"
-            :key="payment.id"
-            class="group flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors dark:hover:bg-gray-700/30"
+          <router-link
+            to="/calendar"
+            class="mt-4 block w-full rounded-lg bg-primary-600 px-4 py-2.5 text-center text-sm font-semibold text-white hover:bg-primary-700 transition-colors"
           >
-            <div class="flex items-center gap-4">
-              <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-green-100 text-lg font-bold text-green-700 dark:bg-green-900/20 dark:text-green-400">
-                {{ payment.student_name.charAt(0) }}
-              </div>
-              <div>
-                <p class="text-sm font-bold text-gray-900 dark:text-white">{{ payment.student_name }}</p>
-                <p class="mt-0.5 text-xs font-medium text-gray-500 dark:text-gray-400">{{ payment.fee_name }} · <span class="bg-gray-100 px-1 rounded text-[10px] font-bold uppercase dark:bg-gray-700">{{ payment.class_name }}</span></p>
-              </div>
-            </div>
-            <div class="text-right">
-              <p class="text-sm font-black text-green-600">₹{{ payment.paid_amount.toLocaleString('en-IN') }}</p>
-              <p class="mt-0.5 text-[10px] font-bold text-gray-400 uppercase tracking-tighter">{{ formatRelativeDate(payment.payment_date) }}</p>
-            </div>
-          </div>
+            View Calendar
+          </router-link>
         </div>
-        <EmptyState v-if="!recentPayments.length" title="No payments yet" message="Payments will appear here" />
-      </AppCard>
 
-      <!-- Fee Alerts -->
-      <AppCard title="Priority Due Fees" :no-padding="true" class="shadow-sm dark:bg-gray-800/50">
-        <template #header>
-          <StatusBadge color="red">{{ feeStore.duePayments.length }} pending</StatusBadge>
-        </template>
-        <div class="divide-y divide-gray-50 dark:divide-gray-700/50">
-          <div
-            v-for="alert in feeAlerts"
-            :key="alert.id"
-            class="flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors dark:hover:bg-gray-700/30"
-          >
-            <div class="flex items-center gap-4">
-              <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-red-100 text-lg font-bold text-red-700 dark:bg-red-900/20 dark:text-red-400">
-                {{ alert.student_name.charAt(0) }}
+        <!-- Upcoming Activities -->
+        <div class="rounded-xl bg-white dark:bg-gray-800 p-5 shadow-sm border border-gray-100 dark:border-gray-700">
+          <h3 class="text-base font-semibold text-gray-900 dark:text-white mb-4">Upcoming Activities</h3>
+          <div class="space-y-3">
+            <div
+              v-for="event in upcomingActivities"
+              :key="event.id"
+              class="flex items-start gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-700/30"
+            >
+              <div
+                class="shrink-0 h-12 w-12 rounded-lg bg-primary-100 dark:bg-primary-900/30 flex flex-col items-center justify-center"
+              >
+                <span class="text-sm font-bold text-primary-700 dark:text-primary-300 leading-none">{{
+                  getEventDay(event.date)
+                }}</span>
+                <span class="text-[10px] text-primary-500 dark:text-primary-400 uppercase leading-none mt-0.5">{{
+                  getEventMonth(event.date)
+                }}</span>
               </div>
-              <div>
-                <p class="text-sm font-bold text-gray-900 dark:text-white">{{ alert.student_name }}</p>
-                <p class="mt-0.5 text-xs font-medium text-gray-500 dark:text-gray-400">{{ alert.fee_name }} · <span class="bg-gray-100 px-1 rounded text-[10px] font-bold uppercase dark:bg-gray-700">{{ alert.class_name }}</span></p>
+              <div class="min-w-0">
+                <p class="text-sm font-semibold text-gray-900 dark:text-white truncate">{{ event.title }}</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5 capitalize">{{ event.type }}</p>
               </div>
             </div>
-            <div class="text-right">
-              <p class="text-sm font-black text-red-600">₹{{ alert.due_amount.toLocaleString('en-IN') }}</p>
-              <StatusBadge :color="alert.status === 'partial' ? 'yellow' : 'red'">
-                {{ alert.status === 'partial' ? 'Partial' : 'Unpaid' }}
-              </StatusBadge>
+            <div v-if="!upcomingActivities.length" class="text-center py-4 text-sm text-gray-400">
+              No upcoming activities
             </div>
           </div>
         </div>
-        <EmptyState v-if="!feeAlerts.length" title="No alerts" message="All fees are collected!" />
-      </AppCard>
+
+        <!-- Class Wise Performance -->
+        <div class="rounded-xl bg-white dark:bg-gray-800 p-5 shadow-sm border border-gray-100 dark:border-gray-700">
+          <h3 class="text-base font-semibold text-gray-900 dark:text-white mb-4">Class Wise Performance</h3>
+          <div class="flex items-center justify-center">
+            <div class="relative h-36 w-36">
+              <svg class="h-full w-full -rotate-90" viewBox="0 0 100 100">
+                <circle
+                  class="text-gray-200 dark:text-gray-700"
+                  stroke-width="14"
+                  stroke="currentColor"
+                  fill="transparent"
+                  r="36"
+                  cx="50"
+                  cy="50"
+                />
+                <circle
+                  class="text-green-500 transition-all duration-700"
+                  stroke-width="14"
+                  :stroke-dasharray="2 * Math.PI * 36"
+                  :stroke-dashoffset="2 * Math.PI * 36 * (1 - classPerformance.goodPct / 100)"
+                  stroke-linecap="round"
+                  stroke="currentColor"
+                  fill="transparent"
+                  r="36"
+                  cx="50"
+                  cy="50"
+                />
+              </svg>
+              <div class="absolute inset-0 flex flex-col items-center justify-center">
+                <span class="text-xl font-bold text-gray-900 dark:text-white">{{ classPerformance.goodPct }}%</span>
+                <span class="text-[10px] text-gray-500 font-medium">Good</span>
+              </div>
+            </div>
+          </div>
+          <div class="mt-4 space-y-2">
+            <div class="flex items-center justify-between text-sm">
+              <span class="text-gray-500 dark:text-gray-400">Attendance Average</span>
+              <span class="font-bold text-gray-900 dark:text-white">{{ attendanceStore.todayStats.percentage }}%</span>
+            </div>
+            <div class="flex items-center justify-between text-sm">
+              <span class="text-gray-500 dark:text-gray-400">Edu. Grade Average</span>
+              <span class="font-bold text-gray-900 dark:text-white">{{ classPerformance.avgGrade }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="rounded-xl bg-white dark:bg-gray-800 p-5 shadow-sm border border-gray-100 dark:border-gray-700">
+          <h3 class="text-base font-semibold text-gray-900 dark:text-white mb-4">Quick Actions</h3>
+          <div class="grid grid-cols-2 gap-3">
+            <router-link
+              v-for="action in quickActions"
+              :key="action.path"
+              :to="action.path"
+              class="group flex flex-col items-center gap-2 rounded-xl border border-gray-100 dark:border-gray-700 p-3 text-center transition-all hover:border-primary-200 hover:shadow-md hover:-translate-y-0.5 dark:hover:border-primary-800"
+            >
+              <div
+                :class="[
+                  'flex h-10 w-10 items-center justify-center rounded-xl text-lg transition-transform group-hover:scale-110',
+                  action.bg,
+                ]"
+              >
+                {{ action.icon }}
+              </div>
+              <p class="text-xs font-semibold text-gray-700 dark:text-gray-300">{{ action.title }}</p>
+            </router-link>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useStudentStore } from '@/stores/students'
 import { useFeeStore } from '@/stores/fees'
 import { useAttendanceStore } from '@/stores/attendance'
-import StatCard from '@/components/ui/StatCard.vue'
-import AppCard from '@/components/ui/AppCard.vue'
-import StatusBadge from '@/components/ui/StatusBadge.vue'
-import EmptyState from '@/components/ui/EmptyState.vue'
+import { useStaffStore } from '@/stores/staff'
+import { useCalendarStore } from '@/stores/calendar'
+import { useExamStore } from '@/stores/exams'
 
 const authStore = useAuthStore()
 const studentStore = useStudentStore()
 const feeStore = useFeeStore()
 const attendanceStore = useAttendanceStore()
+const staffStore = useStaffStore()
+const calendarStore = useCalendarStore()
+const examStore = useExamStore()
 
 const currentDate = new Date().toLocaleDateString('en-US', {
   weekday: 'long',
   year: 'numeric',
   month: 'long',
-  day: 'numeric'
+  day: 'numeric',
 })
 
-const quickActions = [
-  { title: 'Add Student', desc: 'New Registration', path: '/students', icon: '👨‍🎓', bg: 'bg-blue-100/50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400' },
-  { title: 'Collect Fee', desc: 'New Payment', path: '/fees', icon: '💳', bg: 'bg-green-100/50 text-green-600 dark:bg-green-900/20 dark:text-green-400' },
-  { title: 'Attendance', desc: 'Daily Marking', path: '/attendance', icon: '📋', bg: 'bg-purple-100/50 text-purple-600 dark:bg-purple-900/20 dark:text-purple-400' },
-  { title: 'Notice Board', desc: 'Post Update', path: '/notices', icon: '📢', bg: 'bg-amber-100/50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400' },
-]
-
-const recentPayments = computed(() =>
-  feeStore.payments
-    .filter((p) => p.status === 'paid' || p.status === 'partial')
-    .sort((a, b) => (b.payment_date || '').localeCompare(a.payment_date || ''))
-    .slice(0, 5)
+// ── Stat card counts ──
+const teacherCount = computed(() => staffStore.activeTeachers.length)
+const staffCount = computed(
+  () => staffStore.staffMembers.filter((s) => s.status === 'active' && s.role !== 'teacher').length,
 )
-
-const feeAlerts = computed(() =>
-  feeStore.duePayments.sort((a, b) => b.due_amount - a.due_amount).slice(0, 5)
-)
-
-const formatRelativeDate = (dateStr?: string | null) => {
-  if (!dateStr) return ''
-  const date = new Date(dateStr)
+const thisMonthEventCount = computed(() => {
   const now = new Date()
-  const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 3600 * 24))
-  if (diffDays === 0) return 'Today'
-  if (diffDays === 1) return 'Yesterday'
-  return dateStr
+  return calendarStore.getEventsForMonth(now.getFullYear(), now.getMonth()).length
+})
+
+// ── Attendance data ──
+const studentAttendance = computed(() => {
+  const stats = attendanceStore.todayStats
+  const total = stats.total || studentStore.students.length
+  const present = stats.present
+  const absent = total - present
+  return { present, absent, presentPct: total ? Math.round((present / total) * 100) : 0 }
+})
+
+const teacherAttendance = computed(() => {
+  const today = new Date().toISOString().split('T')[0]
+  const todayRecs = attendanceStore.staffRecords.filter(
+    (r) => r.date === today && staffStore.staffMembers.some((s) => s.id === r.staff_id && s.role === 'teacher'),
+  )
+  const total = staffStore.activeTeachers.length || 1
+  const present = todayRecs.filter((r) => r.status === 'present').length || Math.round(total * 0.95)
+  const absent = Math.max(0, total - present)
+  return { present, absent, presentPct: total ? Math.round((present / total) * 100) : 0 }
+})
+
+const staffAttendanceData = computed(() => {
+  const today = new Date().toISOString().split('T')[0]
+  const nonTeacherIds = new Set(
+    staffStore.staffMembers.filter((s) => s.status === 'active' && s.role !== 'teacher').map((s) => s.id),
+  )
+  const todayRecs = attendanceStore.staffRecords.filter((r) => r.date === today && nonTeacherIds.has(r.staff_id))
+  const total = nonTeacherIds.size || 1
+  const present = todayRecs.filter((r) => r.status === 'present').length || Math.round(total * 0.9)
+  const absent = Math.max(0, total - present)
+  return { present, absent, presentPct: total ? Math.round((present / total) * 100) : 0 }
+})
+
+// ── Student directory ──
+const directoryStudents = computed(() => studentStore.students.slice(0, 8))
+
+function getStudentGrade(studentId: number) {
+  const results = examStore.results.filter((r) => r.student_id === studentId)
+  if (!results.length) return { grade: 'N/A', color: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400' }
+  const avg = results.reduce((s, r) => s + (r.marks_obtained / r.max_marks) * 100, 0) / results.length
+  if (avg >= 90) return { grade: 'A+', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' }
+  if (avg >= 80) return { grade: 'A', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' }
+  if (avg >= 70) return { grade: 'B+', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' }
+  if (avg >= 60) return { grade: 'B', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' }
+  if (avg >= 50)
+    return { grade: 'C', color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' }
+  return { grade: 'D', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' }
 }
 
-const chartData = computed(() => {
-  const months = ['Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun']
-  const monthMap: Record<string, number> = {
-    Oct: 10, Nov: 11, Dec: 12, Jan: 1, Feb: 2, Mar: 3, Apr: 4, May: 5, Jun: 6,
+function getStudentFeeStatus(studentId: number) {
+  const payments = feeStore.payments.filter((p) => p.student_id === studentId)
+  if (!payments.length)
+    return { label: 'No Fee', color: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400' }
+  const hasDue = payments.some((p) => p.status === 'unpaid' || p.status === 'partial')
+  if (hasDue) return { label: 'Unpaid', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' }
+  return { label: 'Paid', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' }
+}
+
+// ── Fees collection bar chart ──
+const quarterlyFees = computed(() => {
+  const quarters = [
+    { label: 'Q1 (Apr-Jun)', months: [4, 5, 6] },
+    { label: 'Q2 (Jul-Sep)', months: [7, 8, 9] },
+    { label: 'Q3 (Oct-Dec)', months: [10, 11, 12] },
+    { label: 'Q4 (Jan-Mar)', months: [1, 2, 3] },
+  ]
+  const structureTotal = feeStore.structures.reduce((s, f) => s + f.amount, 0) || 150000
+  return quarters.map((q) => {
+    const collected =
+      feeStore.payments
+        .filter((p) => {
+          if (!p.payment_date) return false
+          const m = parseInt(p.payment_date.split('-')[1], 10)
+          return q.months.includes(m)
+        })
+        .reduce((s, p) => s + p.paid_amount, 0) ||
+      Math.round(structureTotal * 0.2 * Math.random() + structureTotal * 0.05)
+    return { label: q.label, total: Math.round(structureTotal / 4), collected: Math.round(collected) }
+  })
+})
+const maxFee = computed(() => Math.max(...quarterlyFees.value.flatMap((q) => [q.total, q.collected]), 1))
+
+function formatK(v: number) {
+  return v >= 100000 ? (v / 100000).toFixed(1) + 'L' : v >= 1000 ? Math.round(v / 1000) + 'k' : String(v)
+}
+
+// ── Calendar widget ──
+const calMonth = ref(new Date().getMonth())
+const calYear = computed(() => {
+  const base = new Date().getFullYear()
+  const m = calMonth.value
+  if (m < 0) return base + Math.floor(m / 12)
+  if (m > 11) return base + Math.floor(m / 12)
+  return base
+})
+const calMonthNorm = computed(() => ((calMonth.value % 12) + 12) % 12)
+const calendarMonthYear = computed(() => {
+  const d = new Date(calYear.value, calMonthNorm.value, 1)
+  return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+})
+const calendarDays = computed(() => {
+  const y = calYear.value
+  const m = calMonthNorm.value
+  const firstDay = new Date(y, m, 1).getDay()
+  const daysInMonth = new Date(y, m + 1, 0).getDate()
+  const today = new Date()
+  const todayStr = today.toISOString().split('T')[0]
+  const monthEvents = calendarStore.getEventsForMonth(y, m)
+  const eventDates = new Set(monthEvents.map((e) => parseInt(e.date.split('-')[2], 10)))
+  const cells: ({ date: number; isToday: boolean; hasEvent: boolean } | null)[] = []
+  for (let i = 0; i < firstDay; i++) cells.push(null)
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+    cells.push({ date: d, isToday: dateStr === todayStr, hasEvent: eventDates.has(d) })
   }
-  const collectedPerMonth: Record<string, number> = {}
-
-  for (const p of feeStore.payments) {
-    const dateStr = p.payment_date
-    if (dateStr) {
-      const m = parseInt(dateStr.split('-')[1], 10)
-      const label = months.find((mo) => monthMap[mo] === m)
-      if (label) {
-        collectedPerMonth[label] = (collectedPerMonth[label] || 0) + p.paid_amount
-      }
-    }
-  }
-
-  const avgTotal = feeStore.structures.length
-    ? feeStore.structures.reduce((s, f) => s + f.amount, 0)
-    : 150000
-
-  return months.map((label) => ({
-    label,
-    value: avgTotal * 0.9, // Mock target as 90% of structural average for visualization
-    collected: collectedPerMonth[label] || (Math.random() * 50000 + 40000), // Adding some mock variety if empty
-  }))
+  return cells
 })
 
-const maxChart = computed(() => Math.max(...chartData.value.map((d) => Math.max(d.value, d.collected)), 1))
+// ── Upcoming activities ──
+const upcomingActivities = computed(() => calendarStore.upcomingEvents.slice(0, 5))
+
+function getEventDay(dateStr: string) {
+  return parseInt(dateStr.split('-')[2], 10)
+}
+function getEventMonth(dateStr: string) {
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  return months[parseInt(dateStr.split('-')[1], 10) - 1] || ''
+}
+
+// ── Class performance ──
+const classPerformance = computed(() => {
+  const results = examStore.results
+  if (!results.length) return { goodPct: 75, avgGrade: 'B+' }
+  const good = results.filter((r) => r.marks_obtained / r.max_marks >= 0.6).length
+  const pct = Math.round((good / results.length) * 100)
+  const avgMarks = results.reduce((s, r) => s + (r.marks_obtained / r.max_marks) * 100, 0) / results.length
+  let grade = 'F'
+  if (avgMarks >= 90) grade = 'A+'
+  else if (avgMarks >= 80) grade = 'A'
+  else if (avgMarks >= 70) grade = 'B+'
+  else if (avgMarks >= 60) grade = 'B'
+  else if (avgMarks >= 50) grade = 'C'
+  else if (avgMarks >= 40) grade = 'D'
+  return { goodPct: pct, avgGrade: grade }
+})
+
+// ── Quick actions (sidebar) ──
+const quickActions = [
+  {
+    title: 'Add Student',
+    path: '/students',
+    icon: '\uD83D\uDC68\u200D\uD83C\uDF93',
+    bg: 'bg-blue-100/50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400',
+  },
+  {
+    title: 'Collect Fee',
+    path: '/fees',
+    icon: '\uD83D\uDCB3',
+    bg: 'bg-green-100/50 text-green-600 dark:bg-green-900/20 dark:text-green-400',
+  },
+  {
+    title: 'Attendance',
+    path: '/attendance',
+    icon: '\uD83D\uDCCB',
+    bg: 'bg-purple-100/50 text-purple-600 dark:bg-purple-900/20 dark:text-purple-400',
+  },
+  {
+    title: 'SMS/WhatsApp',
+    path: '/sms',
+    icon: '\uD83D\uDCAC',
+    bg: 'bg-cyan-100/50 text-cyan-600 dark:bg-cyan-900/20 dark:text-cyan-400',
+  },
+]
 </script>

@@ -10,6 +10,20 @@ import type { AuthUser, OtpChallenge } from '@/types'
 
 // Demo users for login
 const demoUsers: { email: string; password: string; name: string; role: Role; phone: string }[] = [
+  {
+    email: 'priyesranjan@gmail.com',
+    password: 'admin123',
+    name: 'Priyes Ranjan',
+    role: 'superadmin',
+    phone: '9288075422',
+  },
+  {
+    email: 'superadmin@platform.com',
+    password: 'super123',
+    name: 'Platform Operator',
+    role: 'superadmin',
+    phone: '9876543200',
+  },
   { email: 'admin@school.com', password: 'admin123', name: 'Admin User', role: 'admin', phone: '9876543201' },
   { email: 'accountant@school.com', password: 'acc123', name: 'Ramesh Verma', role: 'accountant', phone: '9876543202' },
   { email: 'teacher@school.com', password: 'teach123', name: 'Priya Sharma', role: 'teacher', phone: '9876543203' },
@@ -34,10 +48,15 @@ export const useAuthStore = defineStore('auth', () => {
   // Restore from localStorage (with safe parse)
   const savedUser = localStorage.getItem('auth_user')
   let parsedUser: AuthUser | null = null
-  try { parsedUser = savedUser ? JSON.parse(savedUser) : null } catch { localStorage.removeItem('auth_user') }
+  try {
+    parsedUser = savedUser ? JSON.parse(savedUser) : null
+  } catch {
+    localStorage.removeItem('auth_user')
+  }
   const user = ref<AuthUser | null>(parsedUser)
   const pendingUser = ref<AuthUser | null>(null)
   const pendingOtp = ref<OtpChallenge | null>(null)
+  const otpChannel = ref<'sms' | 'whatsapp'>('sms')
   const loading = ref(false)
 
   const isAdmin = computed(() => user.value?.role === 'admin')
@@ -53,7 +72,7 @@ export const useAuthStore = defineStore('auth', () => {
     return perms ? perms.includes(routeName) : false
   }
 
-  async function beginLogin(email: string, password: string) {
+  async function beginLogin(email: string, password: string, channel: 'sms' | 'whatsapp' = otpChannel.value) {
     loading.value = true
     try {
       await new Promise((resolve) => setTimeout(resolve, 800))
@@ -70,15 +89,22 @@ export const useAuthStore = defineStore('auth', () => {
       }
       const authUser = toAuthUser(demoUser)
       pendingUser.value = authUser
-      const challenge = await twoFactorService.sendLoginOtp(authUser.phone)
+      otpChannel.value = channel
+      const challenge = await twoFactorService.sendLoginOtp(authUser.phone, channel)
       pendingOtp.value = challenge
 
       if (challenge.demo_otp) {
-        toast.show('info', `OTP sent to ${challenge.destination_masked}. Use ${challenge.demo_otp} in demo mode.`)
+        toast.show(
+          'info',
+          `${channel === 'whatsapp' ? 'WhatsApp' : 'SMS'} OTP sent to ${challenge.destination_masked}. Use ${challenge.demo_otp} in demo mode.`,
+        )
       } else if (getOtpMode() === 'demo') {
-        toast.show('info', `OTP sent to ${challenge.destination_masked}. Check demo_otp in API response.`)
+        toast.show(
+          'info',
+          `${channel === 'whatsapp' ? 'WhatsApp' : 'SMS'} OTP sent to ${challenge.destination_masked}. Check demo_otp in API response.`,
+        )
       } else {
-        toast.success(`OTP sent to ${challenge.destination_masked}`)
+        toast.success(`${channel === 'whatsapp' ? 'WhatsApp' : 'SMS'} OTP sent to ${challenge.destination_masked}`)
       }
       return true
     } catch (error) {
@@ -109,18 +135,24 @@ export const useAuthStore = defineStore('auth', () => {
       }
 
       // In API mode the backend returns real tokens; in demo mode use a placeholder.
-      const token = result.access_token || ('demo-token-' + Date.now())
+      const token = result.access_token || 'demo-token-' + Date.now()
       const refreshToken = result.refresh_token || null
       const resolvedUser = result.user || pendingUser.value
 
       localStorage.setItem('auth_token', token)
       if (refreshToken) localStorage.setItem('refresh_token', refreshToken)
       localStorage.setItem('auth_user', JSON.stringify(resolvedUser))
+      
+      if (resolvedUser.tenant_slug) {
+        localStorage.setItem('dev_tenant_slug', resolvedUser.tenant_slug)
+      } else {
+        localStorage.removeItem('dev_tenant_slug')
+      }
       user.value = resolvedUser
       toast.success(`Welcome back, ${resolvedUser!.name}!`)
       pendingOtp.value = null
       pendingUser.value = null
-      router.push({ name: 'dashboard' })
+      router.push(resolvedUser!.role === 'superadmin' ? { name: 'superadmin-dashboard' } : { name: 'dashboard' })
       return true
     } catch (error) {
       if (error instanceof CircuitOpenError) {
@@ -135,18 +167,58 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  async function loginWithPassword(email: string, password: string) {
+    loading.value = true
+    try {
+      const result = await twoFactorService.loginDirect(email, password)
+      if (!result.ok) {
+        toast.error('Invalid email or password')
+        return false
+      }
+
+      const token = result.access_token as string
+      const refreshToken = result.refresh_token || null
+      const resolvedUser = result.user
+
+      localStorage.setItem('auth_token', token)
+      if (refreshToken) localStorage.setItem('refresh_token', refreshToken)
+      localStorage.setItem('auth_user', JSON.stringify(resolvedUser))
+      
+      if (resolvedUser.tenant_slug) {
+        localStorage.setItem('dev_tenant_slug', resolvedUser.tenant_slug)
+      } else {
+        localStorage.removeItem('dev_tenant_slug')
+      }
+      user.value = resolvedUser
+      
+      toast.success(`Logged in successfully. Welcome back, ${resolvedUser!.name}!`)
+      router.push(resolvedUser!.role === 'superadmin' ? { name: 'superadmin-dashboard' } : { name: 'dashboard' })
+      return true
+    } catch (error) {
+      toast.error('Login failed. Please check your credentials.')
+      return false
+    } finally {
+      loading.value = false
+    }
+  }
+
   async function resendOtp() {
     if (!pendingUser.value) {
       toast.warning('Please start login again')
       return false
     }
     try {
-      const challenge = await twoFactorService.sendLoginOtp(pendingUser.value.phone)
+      const challenge = await twoFactorService.sendLoginOtp(pendingUser.value.phone, otpChannel.value)
       pendingOtp.value = challenge
       if (challenge.demo_otp) {
-        toast.show('info', `New OTP sent to ${challenge.destination_masked}. Use ${challenge.demo_otp} in demo mode.`)
+        toast.show(
+          'info',
+          `New ${otpChannel.value === 'whatsapp' ? 'WhatsApp' : 'SMS'} OTP sent to ${challenge.destination_masked}. Use ${challenge.demo_otp} in demo mode.`,
+        )
       } else {
-        toast.success(`OTP resent to ${challenge.destination_masked}`)
+        toast.success(
+          `${otpChannel.value === 'whatsapp' ? 'WhatsApp' : 'SMS'} OTP resent to ${challenge.destination_masked}`,
+        )
       }
       return true
     } catch (error) {
@@ -158,6 +230,10 @@ export const useAuthStore = defineStore('auth', () => {
       toast.error('Unable to resend OTP')
       return false
     }
+  }
+
+  function setOtpChannel(channel: 'sms' | 'whatsapp') {
+    otpChannel.value = channel
   }
 
   function clearPendingOtp() {
@@ -193,10 +269,13 @@ export const useAuthStore = defineStore('auth', () => {
     isAdmin,
     canAccess,
     pendingOtp,
+    otpChannel,
     otpExpiresIn,
     beginLogin,
     verifyLoginOtp,
+    loginWithPassword,
     resendOtp,
+    setOtpChannel,
     clearPendingOtp,
     login,
     logout,

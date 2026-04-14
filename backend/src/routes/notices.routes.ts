@@ -20,10 +20,12 @@ const router = Router()
 
 router.get('/', requireAuth, async (req, res) => {
   try {
-    const data = await listNotices({
+    const data = await listNotices(req.tenantDb!, {
       page: parsePage(req.query.page, 1),
       per_page: parsePerPage(req.query.per_page, 20),
-      status: req.query.status ? (String(req.query.status) as 'draft' | 'approved' | 'scheduled' | 'published' | 'rejected') : undefined,
+      status: req.query.status
+        ? (String(req.query.status) as 'draft' | 'approved' | 'scheduled' | 'published' | 'rejected')
+        : undefined,
       audience: req.query.audience ? (String(req.query.audience) as 'all' | 'class') : undefined,
       class_name: req.query.class_name ? String(req.query.class_name) : undefined,
     })
@@ -34,24 +36,42 @@ router.get('/', requireAuth, async (req, res) => {
   }
 })
 
-router.post('/', requireAuth, requireRole(['admin', 'teacher']), writeActionLimiter, validateBody(noticeCreateSchema), async (req, res) => {
-  const body = req.body as { title: string; message: string; audience: 'all' | 'class'; class_name?: string | null; send_sms?: boolean }
-  try {
-    const data = await createNotice({
-      title: body.title.trim(), message: body.message.trim(),
-      audience: body.audience, class_name: body.class_name ? body.class_name.trim() : null,
-      send_sms: Boolean(body.send_sms),
-    })
-    await appendAuditLog({
-      action: 'notice_created', module: 'notices',
-      actor_name: req.auth?.name || 'Unknown', actor_role: req.auth?.role || 'unknown',
-      target: data.title, metadata: `audience=${data.audience}${data.class_name ? ` class=${data.class_name}` : ''}`,
-    })
-    res.json({ data })
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to create notice'
-    res.status(500).json({ error: { code: 'NOTICE_CREATE_FAILED', message } })
-  }
-})
+router.post(
+  '/',
+  requireAuth,
+  requireRole(['admin', 'teacher']),
+  writeActionLimiter,
+  validateBody(noticeCreateSchema),
+  async (req, res) => {
+    const body = req.body as {
+      title: string
+      message: string
+      audience: 'all' | 'class'
+      class_name?: string | null
+      send_sms?: boolean
+    }
+    try {
+      const data = await createNotice(req.tenantDb!, {
+        title: body.title.trim(),
+        message: body.message.trim(),
+        audience: body.audience,
+        class_name: body.class_name ? body.class_name.trim() : null,
+        send_sms: Boolean(body.send_sms),
+      })
+      await appendAuditLog(req.tenantDb!, {
+        action: 'notice_created',
+        module: 'notices',
+        actor_name: req.auth?.name || 'Unknown',
+        actor_role: req.auth?.role || 'unknown',
+        target: data.title,
+        metadata: `audience=${data.audience}${data.class_name ? ` class=${data.class_name}` : ''}`,
+      })
+      res.json({ data })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to create notice'
+      res.status(500).json({ error: { code: 'NOTICE_CREATE_FAILED', message } })
+    }
+  },
+)
 
 export default router

@@ -6,14 +6,21 @@ import { calendarEventCreateSchema } from '../validation/schemas'
 import { createCalendarEvent, listCalendarEvents, deleteCalendarEvent } from '../services/calendarService'
 import { appendAuditLog } from '../services/auditLogService'
 
-function parsePage(v: unknown, fb: number) { const n = Number(v); return Number.isFinite(n) && n > 0 ? Math.floor(n) : fb }
-function parsePerPage(v: unknown, fb: number) { const n = Number(v); if (!Number.isFinite(n) || n <= 0) return fb; return Math.min(200, Math.floor(n)) }
+function parsePage(v: unknown, fb: number) {
+  const n = Number(v)
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : fb
+}
+function parsePerPage(v: unknown, fb: number) {
+  const n = Number(v)
+  if (!Number.isFinite(n) || n <= 0) return fb
+  return Math.min(200, Math.floor(n))
+}
 
 const router = Router()
 
 router.get('/', requireAuth, async (req, res) => {
   try {
-    const data = await listCalendarEvents({
+    const data = await listCalendarEvents(req.tenantDb!, {
       page: parsePage(req.query.page, 1),
       per_page: parsePerPage(req.query.per_page, 100),
       type: req.query.type ? (String(req.query.type) as any) : undefined,
@@ -27,24 +34,54 @@ router.get('/', requireAuth, async (req, res) => {
   }
 })
 
-router.post('/', requireAuth, requireRole(['admin']), writeActionLimiter, validateBody(calendarEventCreateSchema), async (req, res) => {
-  const body = req.body as { title: string; date: string; end_date?: string | null; type: string; description?: string | null }
-  try {
-    const data = await createCalendarEvent({ ...body as any, title: body.title.trim() })
-    await appendAuditLog({ action: 'calendar_event_created', module: 'settings', actor_name: req.auth?.name || 'Unknown', actor_role: req.auth?.role || 'unknown', target: data.title, metadata: `date=${data.date} type=${data.type}` })
-    res.json({ data })
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to create calendar event'
-    res.status(500).json({ error: { code: 'CALENDAR_CREATE_FAILED', message } })
-  }
-})
+router.post(
+  '/',
+  requireAuth,
+  requireRole(['admin']),
+  writeActionLimiter,
+  validateBody(calendarEventCreateSchema),
+  async (req, res) => {
+    const body = req.body as {
+      title: string
+      date: string
+      end_date?: string | null
+      type: string
+      description?: string | null
+    }
+    try {
+      const data = await createCalendarEvent(req.tenantDb!, { ...(body as any), title: body.title.trim() })
+      await appendAuditLog(req.tenantDb!, {
+        action: 'calendar_event_created',
+        module: 'settings',
+        actor_name: req.auth?.name || 'Unknown',
+        actor_role: req.auth?.role || 'unknown',
+        target: data.title,
+        metadata: `date=${data.date} type=${data.type}`,
+      })
+      res.json({ data })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to create calendar event'
+      res.status(500).json({ error: { code: 'CALENDAR_CREATE_FAILED', message } })
+    }
+  },
+)
 
 router.delete('/:id', requireAuth, requireRole(['admin']), writeActionLimiter, async (req, res) => {
   const id = Number(req.params.id)
-  if (!Number.isFinite(id) || id <= 0) { res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'Invalid event id' } }); return }
+  if (!Number.isFinite(id) || id <= 0) {
+    res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'Invalid event id' } })
+    return
+  }
   try {
-    await deleteCalendarEvent(id)
-    await appendAuditLog({ action: 'calendar_event_deleted', module: 'settings', actor_name: req.auth?.name || 'Unknown', actor_role: req.auth?.role || 'unknown', target: `event_id=${id}`, metadata: '' })
+    await deleteCalendarEvent(req.tenantDb!, id)
+    await appendAuditLog(req.tenantDb!, {
+      action: 'calendar_event_deleted',
+      module: 'settings',
+      actor_name: req.auth?.name || 'Unknown',
+      actor_role: req.auth?.role || 'unknown',
+      target: `event_id=${id}`,
+      metadata: '',
+    })
     res.json({ data: { deleted: true } })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to delete calendar event'

@@ -1,0 +1,90 @@
+import type { PrismaClient } from '@prisma/client'
+import { verifyPassword, createAccessToken } from './authTokenService'
+import { issueRefreshToken } from './refreshTokenService'
+
+export async function loginWithPassword(db: PrismaClient, email: string, password: string, tenantSlug: string) {
+  // 1. Try SuperAdmin lookup (Platform level)
+  try {
+    const superAdmin = await (db as any).superAdmin.findUnique({ where: { email } })
+    if (superAdmin && superAdmin.isActive) {
+      const isValid = await verifyPassword(password, superAdmin.passwordHash)
+      if (isValid) {
+        const claims = {
+          sub: `superadmin:${superAdmin.id}`,
+          name: superAdmin.name,
+          role: 'superadmin' as const,
+          email: superAdmin.email,
+          tenantSlug: '',
+          isRoot: superAdmin.isRoot,
+        }
+        const accessToken = createAccessToken(claims)
+        const refreshToken = await issueRefreshToken(db, claims)
+        return {
+          ok: true as const,
+          data: {
+            verified: true,
+            token: accessToken,
+            access_token: accessToken,
+            refresh_token: refreshToken,
+            user: {
+              name: superAdmin.name,
+              role: 'superadmin',
+              email: superAdmin.email,
+              phone: superAdmin.phone,
+              tenant_slug: '',
+            },
+          },
+        }
+      }
+    }
+  } catch (err) {
+    // SuperAdmin table might not exist in tenant DB if they used separate DBs, 
+    // but in consolidated mode it will be there.
+  }
+
+  // 2. Try User lookup (Tenant level)
+  const user = await db.user.findUnique({ where: { email } })
+  if (!user || user.status !== 'active' || !user.passwordHash) {
+    return { ok: false as const, code: 'INVALID_CREDENTIALS', message: 'Invalid email or password' }
+  }
+
+  const isValid = await verifyPassword(password, user.passwordHash)
+  if (!isValid) {
+    return { ok: false as const, code: 'INVALID_CREDENTIALS', message: 'Invalid email or password' }
+  }
+
+  // Update last login
+  await db.user.update({
+    where: { id: user.id },
+    data: { lastLoginAt: new Date() },
+  })
+
+  const claims = {
+    sub: `user:${user.id}`,
+    name: user.name,
+    role: user.role as any,
+    email: user.email,
+    tenantSlug,
+    isRoot: false,
+  }
+
+  const accessToken = createAccessToken(claims)
+  const refreshToken = await issueRefreshToken(db, claims)
+
+  return {
+    ok: true as const,
+    data: {
+      verified: true,
+      token: accessToken,
+      access_token: accessToken,
+      refresh_token: refreshToken,
+      user: {
+        name: user.name,
+        role: user.role,
+        email: user.email,
+        phone: user.phone,
+        tenant_slug: tenantSlug,
+      },
+    },
+  }
+}

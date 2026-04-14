@@ -18,12 +18,16 @@ import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import AppLayout from '@/layouts/AppLayout.vue'
 import AuthLayout from '@/layouts/AuthLayout.vue'
+import SuperAdminLayout from '@/layouts/SuperAdminLayout.vue'
+import PublicLayout from '@/layouts/PublicLayout.vue'
 import ToastContainer from '@/components/ui/ToastContainer.vue'
 import ErrorBoundary from '@/components/ui/ErrorBoundary.vue'
 
 const route = useRoute()
 const layout = computed(() => {
-  return route.meta.layout === 'auth' ? AuthLayout : AppLayout
+  if (route.meta.layout === 'public') return PublicLayout
+  if (route.meta.layout === 'auth') return AuthLayout
+  if (route.meta.layout === 'superadmin') return SuperAdminLayout
+  return AppLayout
 })
 </script>
-

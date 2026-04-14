@@ -1,7 +1,8 @@
 import { cleanupRefreshTokens } from '../services/refreshTokenService'
+import { prisma } from '../db/prisma'
 
 async function main() {
-  const result = await cleanupRefreshTokens()
+  const result = await cleanupRefreshTokens(prisma)
   console.log(JSON.stringify({ data: result }, null, 2))
 }
 

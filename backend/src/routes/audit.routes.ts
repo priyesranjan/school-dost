@@ -20,7 +20,7 @@ const router = Router()
 
 router.get('/logs', requireAuth, async (req, res) => {
   try {
-    const data = await listAuditLogs({
+    const data = await listAuditLogs(req.tenantDb!, {
       page: parsePage(req.query.page, 1),
       per_page: parsePerPage(req.query.per_page, 50),
       module: req.query.module ? String(req.query.module) : undefined,
@@ -34,9 +34,9 @@ router.get('/logs', requireAuth, async (req, res) => {
   }
 })
 
-router.get('/verify', requireAuth, requireRole(['admin']), async (_req, res) => {
+router.get('/verify', requireAuth, requireRole(['admin']), async (req, res) => {
   try {
-    const data = await verifyAuditIntegrity()
+    const data = await verifyAuditIntegrity(req.tenantDb!)
     res.json({ data })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to verify audit integrity'
@@ -44,13 +44,28 @@ router.get('/verify', requireAuth, requireRole(['admin']), async (_req, res) => 
   }
 })
 
-router.post('/sign', requireAuth, requireRole(['admin']), writeActionLimiter, validateBody(auditSignSchema), (req, res) => {
-  const safePayload = req.body as {
-    id: number; action: string; module: string; actor_name: string; actor_role: string
-    target: string; metadata: string; created_at: string; prev_hash: string; signature_version: number
-  }
-  const hash = signAuditPayload(safePayload)
-  res.json({ data: { hash } })
-})
+router.post(
+  '/sign',
+  requireAuth,
+  requireRole(['admin']),
+  writeActionLimiter,
+  validateBody(auditSignSchema),
+  (req, res) => {
+    const safePayload = req.body as {
+      id: number
+      action: string
+      module: string
+      actor_name: string
+      actor_role: string
+      target: string
+      metadata: string
+      created_at: string
+      prev_hash: string
+      signature_version: number
+    }
+    const hash = signAuditPayload(safePayload)
+    res.json({ data: { hash } })
+  },
+)
 
 export default router

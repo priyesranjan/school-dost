@@ -8,6 +8,7 @@ const certificateTypeEnum = z.enum(['tc', 'character'])
 export const otpSendSchema = z.object({
   phone: z.string().min(8),
   purpose: z.literal('login'),
+  channel: z.enum(['sms', 'whatsapp']).optional(),
 })
 
 export const otpVerifySchema = z.object({
@@ -23,27 +24,37 @@ export const logoutSchema = z.object({
   refresh_token: z.string().min(20),
 })
 
+export const loginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(6),
+})
+
 export const r2SignUploadSchema = z.object({
   object_key: z
     .string()
     .min(3)
     .max(1024)
-    .regex(/^[\w\-./]+$/, 'object_key may only contain alphanumeric characters, hyphens, underscores, dots, and forward slashes')
+    .regex(
+      /^[\w\-./]+$/,
+      'object_key may only contain alphanumeric characters, hyphens, underscores, dots, and forward slashes',
+    )
     .refine((v) => !v.includes('..'), 'object_key must not contain path traversal sequences'),
   content_type: z.string().min(3).max(255),
 })
 
-export const noticeCreateSchema = z.object({
-  title: z.string().min(2),
-  message: z.string().min(2),
-  audience: z.enum(['all', 'class']),
-  class_name: z.string().min(1).nullable().optional(),
-  send_sms: z.boolean().optional(),
-}).superRefine((val, ctx) => {
-  if (val.audience === 'class' && !val.class_name) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'class_name is required when audience=class' })
-  }
-})
+export const noticeCreateSchema = z
+  .object({
+    title: z.string().min(2),
+    message: z.string().min(2),
+    audience: z.enum(['all', 'class']),
+    class_name: z.string().min(1).nullable().optional(),
+    send_sms: z.boolean().optional(),
+  })
+  .superRefine((val, ctx) => {
+    if (val.audience === 'class' && !val.class_name) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'class_name is required when audience=class' })
+    }
+  })
 
 export const timetableCreateSchema = z.object({
   class_name: z.string().min(1),
@@ -79,6 +90,7 @@ export const studentCreateSchema = z.object({
   admission_date: z.string().min(8),
   email: z.string().email().nullable().optional(),
   address: z.string().nullable().optional(),
+  parent_user_id: z.number().int().positive().nullable().optional(),
 })
 
 export const certificateIssueSchema = z.object({
@@ -109,13 +121,16 @@ export const feePaymentCreateSchema = z.object({
 })
 
 export const attendanceBulkCreateSchema = z.object({
-  records: z.array(
-    z.object({
-      student_id: z.number().int().positive(),
-      date: z.string().min(8),
-      status: attendanceStatusEnum,
-    }),
-  ).min(1).max(200),
+  records: z
+    .array(
+      z.object({
+        student_id: z.number().int().positive(),
+        date: z.string().min(8),
+        status: attendanceStatusEnum,
+      }),
+    )
+    .min(1)
+    .max(200),
 })
 
 export const attendanceCreateSchema = z.object({
@@ -151,5 +166,5 @@ export const examCreateSchema = z.object({
 export const examResultUpsertSchema = z.object({
   exam_id: z.number().int().positive(),
   student_id: z.number().int().positive(),
-  marks_obtained: z.number().int().nonneg(),
+  marks_obtained: z.number().int().nonnegative(),
 })

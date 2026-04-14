@@ -1,5 +1,6 @@
 import axios from 'axios'
 import router from '@/router'
+import type { InternalAxiosRequestConfig } from 'axios'
 
 const api = axios.create({
   baseURL: '/api',
@@ -14,11 +15,25 @@ api.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
+  // Multi-tenancy: send slug so backend resolves the correct tenant DB.
+  // Production uses subdomain; dev/Postman uses this header fallback.
+  const slug = (() => {
+    const parts = window.location.hostname.split('.')
+    if (parts.length >= 3) return parts[0] // subdomain in prod
+    return localStorage.getItem('dev_tenant_slug') || import.meta.env.VITE_TENANT_SLUG || ''
+  })()
+  if (slug) config.headers['X-Tenant-Slug'] = slug
   return config
 })
 
 // Track in-flight refresh to avoid concurrent refresh storms
 let refreshPromise: Promise<string | null> | null = null
+
+type ApiRequestConfig = InternalAxiosRequestConfig & {
+  _retry?: boolean
+  skipAuthRefresh?: boolean
+  skipLogoutOnAuthFailure?: boolean
+}
 
 async function tryRefreshToken(): Promise<string | null> {
   const refreshToken = localStorage.getItem('refresh_token')
@@ -38,26 +53,39 @@ async function tryRefreshToken(): Promise<string | null> {
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    const originalRequest = error.config as typeof error.config & { _retry?: boolean }
+    const originalRequest = (error.config || {}) as ApiRequestConfig
+    if (error.response?.status === 401 && originalRequest.skipAuthRefresh) {
+      return Promise.reject(error)
+    }
+
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true
       // Share a single refresh attempt across concurrent requests
       if (!refreshPromise) {
-        refreshPromise = tryRefreshToken().finally(() => { refreshPromise = null })
+        refreshPromise = tryRefreshToken().finally(() => {
+          refreshPromise = null
+        })
       }
       const newToken = await refreshPromise
       if (newToken) {
         originalRequest.headers.Authorization = `Bearer ${newToken}`
         return api(originalRequest)
       }
+      if (originalRequest.skipLogoutOnAuthFailure) {
+        return Promise.reject(error)
+      }
       // Refresh failed — clear session and redirect to login
       localStorage.removeItem('auth_token')
       localStorage.removeItem('refresh_token')
       localStorage.removeItem('auth_user')
       router.push({ name: 'login' })
+    } else if (error.response?.status >= 500) {
+      const { useToastStore } = await import('@/stores/toast')
+      const toast = useToastStore()
+      toast.error('A server error occurred. Please try again later.')
     }
     return Promise.reject(error)
-  }
+  },
 )
 
 export default api

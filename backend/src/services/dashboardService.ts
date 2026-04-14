@@ -1,35 +1,28 @@
-import { prisma } from '../db/prisma'
+import type { PrismaClient } from '@prisma/client'
 
-export async function getDashboardSummary() {
+export async function getDashboardSummary(db: PrismaClient) {
   const start = new Date()
   start.setHours(0, 0, 0, 0)
   const end = new Date(start.getTime() + 24 * 60 * 60 * 1000)
 
-  const [
-    totalStudents,
-    feeAgg,
-    pendingAgg,
-    attendanceToday,
-    recentPayments,
-    feeAlerts,
-  ] = await Promise.all([
-    prisma.student.count({ where: { status: 'active' } }),
-    prisma.feePayment.aggregate({ _sum: { paidAmount: true } }),
-    prisma.feePayment.aggregate({ _sum: { dueAmount: true } }),
-    prisma.attendanceRecord.count({
+  const [totalStudents, feeAgg, pendingAgg, attendanceToday, recentPayments, feeAlerts] = await Promise.all([
+    db.student.count({ where: { status: 'active' } }),
+    db.feePayment.aggregate({ _sum: { paidAmount: true } }),
+    db.feePayment.aggregate({ _sum: { dueAmount: true } }),
+    db.attendanceRecord.count({
       where: {
         date: { gte: start, lt: end },
         status: 'present',
       },
     }),
-    prisma.feePayment.findMany({
+    db.feePayment.findMany({
       include: {
         student: { select: { name: true, className: true } },
       },
       orderBy: [{ paymentDate: 'desc' }, { createdAt: 'desc' }],
       take: 5,
     }),
-    prisma.feePayment.findMany({
+    db.feePayment.findMany({
       where: { dueAmount: { gt: 0 } },
       include: {
         student: { select: { name: true, className: true } },

@@ -1,5 +1,5 @@
 import { randomInt } from 'node:crypto'
-import { prisma } from '../db/prisma'
+import type { PrismaClient } from '@prisma/client'
 import { signAuditPayload } from './auditSignService'
 import type { AppRole } from './authTokenService'
 
@@ -10,15 +10,18 @@ function maskValue(value: string) {
   return `${clean.slice(0, 2)}***${clean.slice(-2)}`
 }
 
-export async function appendAuditLog(input: {
-  action: string
-  module: string
-  actor_name: string
-  actor_role: string
-  target: string
-  metadata: string
-}) {
-  const latest = await prisma.auditLog.findFirst({
+export async function appendAuditLog(
+  db: PrismaClient,
+  input: {
+    action: string
+    module: string
+    actor_name: string
+    actor_role: string
+    target: string
+    metadata: string
+  },
+) {
+  const latest = await db.auditLog.findFirst({
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
   })
 
@@ -40,7 +43,7 @@ export async function appendAuditLog(input: {
     signature_version: signatureVersion,
   })
 
-  await prisma.auditLog.create({
+  await db.auditLog.create({
     data: {
       action: input.action,
       module: input.module,
@@ -57,26 +60,29 @@ export async function appendAuditLog(input: {
   })
 }
 
-export async function listAuditLogs(input: {
-  page: number
-  per_page: number
-  module?: string
-  action?: string
-  role: AppRole
-}) {
+export async function listAuditLogs(
+  db: PrismaClient,
+  input: {
+    page: number
+    per_page: number
+    module?: string
+    action?: string
+    role: AppRole
+  },
+) {
   const where = {
     module: input.module || undefined,
     action: input.action || undefined,
   }
 
   const [rows, total] = await Promise.all([
-    prisma.auditLog.findMany({
+    db.auditLog.findMany({
       where,
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       skip: (input.page - 1) * input.per_page,
       take: input.per_page,
     }),
-    prisma.auditLog.count({ where }),
+    db.auditLog.count({ where }),
   ])
 
   const canViewRaw = input.role === 'admin'
@@ -105,8 +111,8 @@ export async function listAuditLogs(input: {
   }
 }
 
-export async function verifyAuditIntegrity() {
-  const rows = await prisma.auditLog.findMany({
+export async function verifyAuditIntegrity(db: PrismaClient) {
+  const rows = await db.auditLog.findMany({
     orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
   })
 
@@ -148,7 +154,7 @@ export async function verifyAuditIntegrity() {
   let alert_emitted = false
 
   if (tampered) {
-    const recentAlert = await prisma.auditLog.findFirst({
+    const recentAlert = await db.auditLog.findFirst({
       where: {
         module: 'security',
         action: 'audit_tamper_detected',
@@ -158,7 +164,7 @@ export async function verifyAuditIntegrity() {
     })
 
     if (!recentAlert) {
-      await appendAuditLog({
+      await appendAuditLog(db, {
         action: 'audit_tamper_detected',
         module: 'security',
         actor_name: 'System Guard',
