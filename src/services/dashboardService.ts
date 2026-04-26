@@ -3,6 +3,6 @@ import type { DashboardStats, ApiResponse } from '@/types'
 
 export const dashboardService = {
   getStats(): Promise<ApiResponse<DashboardStats>> {
-    return api.get('/dashboard/stats').then((r) => r.data)
+    return api.get('/dashboard/summary').then((r) => r.data)
   },
 }

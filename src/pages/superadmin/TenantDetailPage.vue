@@ -1,524 +1,364 @@
 <template>
-  <div class="space-y-8">
-    <!-- Back -->
-    <router-link
-      to="/superadmin/institutions"
-      class="inline-flex items-center gap-2 text-xs font-bold text-gray-400 hover:text-white transition-colors"
-    >
-      ← Back to Institutions
-    </router-link>
-
-    <!-- Loading -->
-    <div v-if="loading" class="flex items-center justify-center py-24">
-      <svg class="h-8 w-8 animate-spin text-violet-500" fill="none" viewBox="0 0 24 24">
-        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-      </svg>
+  <div v-if="tenant" class="space-y-4">
+    <!-- Header -->
+    <div class="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-5 py-3 dark:border-gray-700 dark:bg-gray-900">
+      <div class="flex items-center gap-3">
+        <button @click="$router.push('/superadmin/institutions')" class="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700">
+          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
+        </button>
+        <div class="h-10 w-10 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-black text-lg">
+          {{ tenant.name.charAt(0) }}
+        </div>
+        <div>
+          <h1 class="font-black text-gray-900 dark:text-white">{{ tenant.name }}</h1>
+          <p class="text-xs text-gray-500">{{ tenant.city }}, {{ tenant.state }} · {{ tenant.type }}</p>
+        </div>
+      </div>
+      <StatusPill :status="tenant.subscription_status" />
     </div>
 
-    <!-- Error -->
-    <div v-else-if="error" class="rounded-3xl border border-red-500/30 bg-red-500/10 p-8 text-center">
-      <p class="text-red-400 font-bold">{{ error }}</p>
-      <button
-        @click="loadTenant"
-        class="mt-4 rounded-xl border border-red-500/30 px-6 py-2 text-xs font-bold text-red-400 hover:bg-red-500/10 transition-colors"
-      >
-        Retry
+    <!-- Tabs -->
+    <div class="flex border-b-2 border-gray-200 bg-white rounded-t-xl dark:border-gray-700 dark:bg-gray-900 overflow-x-auto">
+      <button v-for="tab in tabs" :key="tab.id" @click="activeTab = tab.id"
+        :class="['px-5 py-3 text-[11px] font-bold uppercase tracking-wider border-b-2 -mb-[2px] whitespace-nowrap transition-all',
+          activeTab === tab.id
+            ? 'text-blue-700 border-blue-600 dark:text-blue-400 dark:border-blue-400'
+            : 'text-gray-500 border-transparent hover:text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800']">
+        {{ tab.icon }} {{ tab.label }}
       </button>
     </div>
 
-    <template v-else-if="tenant">
-      <!-- Hero Header -->
-      <div class="relative overflow-hidden rounded-3xl border border-gray-800 bg-gray-900/50 p-8">
-        <div class="absolute inset-x-0 top-0 h-1 bg-gradient-to-r" :class="statusBar"></div>
-        <div class="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
-          <div class="flex items-center gap-5">
-            <div
-              class="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 to-fuchsia-600 text-2xl font-black text-white shadow-lg shadow-violet-500/30"
-            >
-              {{ tenant.name.charAt(0) }}
-            </div>
+    <div class="rounded-b-xl border border-t-0 border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-900">
+
+      <!-- ===== TAB: OVERVIEW ===== -->
+      <div v-if="activeTab === 'overview'" class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <StatCard label="Total Students" :value="String(tenant.total_students)" color="blue" icon="🎓" />
+        <StatCard label="Total Staff" :value="String(tenant.total_staff)" color="emerald" icon="👩‍🏫" />
+        <StatCard label="Monthly Bill" :value="monthlyBillDisplay" color="amber" icon="💰" />
+        <StatCard label="Days Left" :value="String(daysRemaining)" :color="daysRemaining <= 3 ? 'red' : daysRemaining <= 7 ? 'amber' : 'green'" icon="⏳" />
+        <div class="col-span-2 sm:col-span-4 rounded-lg border border-gray-100 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800 text-sm space-y-2">
+          <div class="flex justify-between"><span class="text-gray-500">Admin</span><span class="font-semibold">{{ tenant.admin_name }}</span></div>
+          <div class="flex justify-between"><span class="text-gray-500">Email</span><span class="font-semibold">{{ tenant.admin_email }}</span></div>
+          <div class="flex justify-between"><span class="text-gray-500">Onboarded</span><span class="font-semibold">{{ fmtDate(tenant.onboarded_at) }}</span></div>
+          <div class="flex justify-between"><span class="text-gray-500">Trial Ends</span><span class="font-semibold">{{ tenant.trial_ends_at ? fmtDate(tenant.trial_ends_at) : '—' }}</span></div>
+          <div class="flex justify-between"><span class="text-gray-500">Sub Ends</span><span class="font-semibold">{{ tenant.subscription_end ? fmtDate(tenant.subscription_end) : '—' }}</span></div>
+        </div>
+      </div>
+
+      <!-- ===== TAB: SUBSCRIPTION ===== -->
+      <div v-if="activeTab === 'subscription'" class="space-y-5">
+        <!-- Status Banner -->
+        <div :class="['rounded-xl p-4 border-2', statusBannerClass]">
+          <div class="flex items-center justify-between flex-wrap gap-3">
             <div>
-              <h1 class="text-2xl font-black text-white">{{ tenant.name }}</h1>
-              <p class="mt-0.5 text-sm text-gray-400">
-                {{ tenant.type }} · {{ tenant.board || 'N/A' }} · {{ tenant.city }}, {{ tenant.state }}
+              <p class="text-xs font-bold uppercase tracking-wider opacity-70">Subscription Status</p>
+              <p class="text-2xl font-black mt-0.5">{{ statusLabel }}</p>
+              <p class="text-sm mt-1 opacity-80">
+                <span v-if="tenant.subscription_status === 'trial'">Trial ends: <strong>{{ tenant.trial_ends_at ? fmtDate(tenant.trial_ends_at) : '—' }}</strong> · <strong>{{ daysRemaining }} days</strong> remaining</span>
+                <span v-else-if="tenant.subscription_status === 'active'">Subscription valid until: <strong>{{ tenant.subscription_end ? fmtDate(tenant.subscription_end) : '—' }}</strong> · <strong>{{ daysRemaining }} days</strong> remaining</span>
+                <span v-else-if="tenant.subscription_status === 'expired'">Expired on <strong>{{ tenant.trial_ends_at ? fmtDate(tenant.trial_ends_at) : '—' }}</strong>. School is <strong>BLOCKED</strong>.</span>
+                <span v-else>Account suspended. School cannot access the system.</span>
               </p>
-              <p class="mt-1 font-mono text-xs text-gray-600">{{ tenant.slug }}.yourerp.com</p>
             </div>
-          </div>
-          <div class="flex items-center gap-3">
-            <span
-              :class="[
-                'inline-flex rounded-full px-4 py-1.5 text-xs font-black uppercase tracking-widest',
-                statusBadge,
-              ]"
-            >
-              {{ tenant.status }}
-            </span>
-            <button
-              v-if="tenant.status !== 'suspended'"
-              @click="doSuspend"
-              :disabled="actionLoading"
-              class="rounded-xl border border-red-500/30 px-4 py-2 text-xs font-bold text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
-            >
-              Suspend
-            </button>
-            <button
-              v-else
-              @click="doActivate"
-              :disabled="actionLoading"
-              class="rounded-xl border border-emerald-500/30 px-4 py-2 text-xs font-bold text-emerald-400 hover:bg-emerald-500/10 transition-colors disabled:opacity-50"
-            >
-              Reactivate
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Navigation Tabs -->
-      <div class="flex items-center border-b border-gray-800">
-        <button
-          v-for="tab in ['Overview', 'Maintenance & Backups']"
-          :key="tab"
-          @click="activeTab = tab"
-          :class="[
-            'px-8 py-4 text-xs font-black uppercase tracking-widest transition-all border-b-2',
-            activeTab === tab
-              ? 'border-violet-500 text-white bg-violet-500/5'
-              : 'border-transparent text-gray-500 hover:text-gray-300',
-          ]"
-        >
-          {{ tab }}
-        </button>
-      </div>
-
-      <!-- Overview Tab -->
-      <div v-if="activeTab === 'Overview'" class="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
-        <!-- Stats Row -->
-        <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <div v-for="s in statCards" :key="s.label" class="rounded-2xl border border-gray-800 bg-gray-900/50 p-5">
-            <p class="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">{{ s.label }}</p>
-            <p class="mt-2 text-2xl font-black text-white">{{ s.value }}</p>
+            <StatusPill :status="tenant.subscription_status" size="lg" />
           </div>
         </div>
 
-        <div class="grid grid-cols-1 gap-8 lg:grid-cols-2">
-          <!-- Institutional Info -->
-          <div class="space-y-6">
-            <div class="rounded-3xl border border-gray-800 bg-gray-900/50 p-6 space-y-4">
-              <h2 class="text-xs font-black uppercase tracking-widest text-gray-400">Subscription</h2>
-              <div class="grid grid-cols-2 gap-4">
-                <div>
-                  <p class="text-[10px] text-gray-500 uppercase tracking-widest">Plan</p>
-                  <p class="mt-1 text-sm font-black text-violet-400 uppercase">{{ tenant.plan }}</p>
-                </div>
-                <div>
-                  <p class="text-[10px] text-gray-500 uppercase tracking-widest">Status</p>
-                  <p
-                    class="mt-1 text-sm font-black"
-                    :class="
-                      tenant.status === 'active'
-                        ? 'text-emerald-400'
-                        : tenant.status === 'trial'
-                          ? 'text-amber-400'
-                          : 'text-red-400'
-                    "
-                  >
-                    {{ tenant.status }}
-                  </p>
-                </div>
-                <div v-if="tenant.trialEndsAt">
-                  <p class="text-[10px] text-gray-500 uppercase tracking-widest">Trial Ends</p>
-                  <p class="mt-1 text-sm font-bold text-white">{{ fmtDate(tenant.trialEndsAt) }}</p>
-                </div>
-                <div>
-                  <p class="text-[10px] text-gray-500 uppercase tracking-widest">Onboarded</p>
-                  <p class="mt-1 text-sm font-bold text-white">{{ fmtDate(tenant.createdAt) }}</p>
-                </div>
-              </div>
+        <!-- Pricing Calculator -->
+        <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20">
+          <p class="text-xs font-bold uppercase tracking-wider text-amber-700 mb-3">💰 Monthly Bill Calculator</p>
+          <div class="flex items-center gap-4 flex-wrap">
+            <div class="text-center">
+              <p class="text-3xl font-black text-amber-700">{{ monthlyBillDisplay }}</p>
+              <p class="text-xs text-amber-600 mt-0.5">{{ tenant.total_students }} students/month</p>
             </div>
-
-            <div class="rounded-3xl border border-gray-800 bg-gray-900/50 p-6 space-y-4">
-              <h2 class="text-xs font-black uppercase tracking-widest text-gray-400">Administrator</h2>
-              <div class="flex items-center gap-3">
-                <div
-                  class="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-700/50 text-sm font-black text-white"
-                >
-                  {{ tenant.adminName?.charAt(0) || '?' }}
-                </div>
-                <div>
-                  <p class="text-sm font-bold text-white">{{ tenant.adminName }}</p>
-                  <p class="text-xs text-gray-400">{{ tenant.adminEmail }}</p>
-                </div>
-              </div>
+            <div class="flex-1 min-w-[200px]">
+              <p class="text-xs font-bold text-amber-800">Applied Tier: <span class="text-amber-600">{{ billResult.tier.label }}</span></p>
+              <p class="text-xs text-amber-700 mt-0.5">{{ billResult.tier.description }}</p>
             </div>
           </div>
-
-          <!-- Audit Log -->
-          <div class="rounded-3xl border border-gray-800 bg-gray-900/50 p-6 space-y-4">
-            <h2 class="text-xs font-black uppercase tracking-widest text-gray-400">Activity Log</h2>
-            <div v-if="auditLog.length === 0" class="py-8 text-center text-xs text-gray-600">No audit entries yet.</div>
-            <div class="space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-              <div
-                v-for="entry in auditLog"
-                :key="entry.id"
-                class="relative flex gap-4 rounded-2xl border border-gray-800/50 bg-gray-800/30 p-4"
-              >
-                <div
-                  class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-sm"
-                  :class="auditIcon(entry.action).bg"
-                >
-                  {{ auditIcon(entry.action).icon }}
-                </div>
-                <div class="flex-1 min-w-0">
-                  <p class="text-xs font-bold text-white">{{ entry.action }}</p>
-                  <p v-if="entry.notes" class="mt-0.5 text-[11px] text-gray-500 truncate">{{ entry.notes }}</p>
-                  <p class="mt-1 text-[10px] text-gray-600">
-                    {{ entry.performedBy }} · {{ fmtDate(entry.performedAt || entry.createdAt) }}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Maintenance Tab -->
-      <div
-        v-if="activeTab === 'Maintenance & Backups'"
-        class="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-500"
-      >
-        <div class="grid grid-cols-1 gap-8 lg:grid-cols-3">
-          <!-- Control Panel -->
-          <div class="lg:col-span-1 space-y-6">
-            <!-- Backups Card -->
-            <div class="rounded-3xl border border-gray-800 bg-gray-900/50 p-6 space-y-6">
-              <div class="flex items-center justify-between">
-                <h2 class="text-xs font-black uppercase tracking-widest text-gray-400">Data Preservation</h2>
-                <div class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></div>
-              </div>
-              <p class="text-xs text-gray-500 leading-relaxed">
-                Create a full database snapshot. This includes all students, staff, and financial records.
+          <!-- Pricing tiers reference -->
+          <div class="mt-3 grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+            <div v-for="tier in pricingTiers" :key="tier.label"
+              :class="['rounded-lg border p-2 text-center text-xs', billResult.tier.label === tier.label ? 'border-amber-500 bg-amber-100 dark:bg-amber-900/40' : 'border-amber-200 dark:border-amber-800']">
+              <p class="font-bold text-amber-800 dark:text-amber-400">{{ tier.label }}</p>
+              <p class="text-amber-600 dark:text-amber-500">
+                {{ tier.ratePerStudent !== null ? '₹' + tier.ratePerStudent + '/student' : 'Contact Us' }}
               </p>
-              <button
-                @click="takeBackup"
-                :disabled="actionLoading"
-                class="w-full flex items-center justify-center gap-2 rounded-xl bg-violet-600 px-6 py-4 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-violet-500/20 hover:bg-violet-500 transition-all disabled:opacity-50"
-              >
-                <span v-if="actionLoading && lastAction === 'backup'">🔄 Processing...</span>
-                <span v-else>🛡️ Backup Database Now</span>
-              </button>
-            </div>
-
-            <!-- Demo Tools Card -->
-            <div class="rounded-3xl border border-gray-800 bg-gray-900/50 p-6 space-y-6">
-              <h2 class="text-xs font-black uppercase tracking-widest text-gray-400">Development Tools</h2>
-              <div class="space-y-4">
-                <button
-                  @click="seedDemo"
-                  :disabled="actionLoading"
-                  class="w-full flex items-center justify-center gap-2 rounded-xl border border-gray-700 bg-gray-800 px-6 py-4 text-xs font-black uppercase tracking-widest text-gray-300 hover:bg-gray-700 transition-all disabled:opacity-50"
-                >
-                  🌱 Seed Sample Data
-                </button>
-                <button
-                  @click="purgeData"
-                  :disabled="actionLoading"
-                  class="w-full flex items-center justify-center gap-2 rounded-xl border border-red-500/30 bg-red-500/5 px-6 py-4 text-xs font-black uppercase tracking-widest text-red-400 hover:bg-red-500/10 transition-all disabled:opacity-50"
-                >
-                  💀 Force Wipe Data
-                </button>
-              </div>
             </div>
           </div>
+        </div>
 
-          <!-- Backup History -->
-          <div class="lg:col-span-2 rounded-3xl border border-gray-800 bg-gray-900/50 p-6 space-y-6">
-            <h2 class="text-xs font-black uppercase tracking-widest text-gray-400 px-2">Institutional Snapshots</h2>
+        <!-- Action Controls -->
+        <div class="rounded-xl border border-gray-200 dark:border-gray-700">
+          <div class="border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-4 py-2.5 rounded-t-xl">
+            <p class="text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400">⚙️ SuperAdmin Controls</p>
+          </div>
+          <div class="p-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
 
-            <div class="overflow-hidden rounded-2xl border border-gray-800">
-              <table class="w-full text-left text-xs">
-                <thead class="bg-gray-800/50 text-[10px] font-black uppercase tracking-widest text-gray-500">
-                  <tr>
-                    <th class="px-6 py-4">Snapshot ID</th>
-                    <th class="px-6 py-4">Size</th>
-                    <th class="px-6 py-4">Status</th>
-                    <th class="px-6 py-4 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-800">
-                  <tr v-for="b in backups" :key="b.id" class="group hover:bg-white/5 transition-colors">
-                    <td class="px-6 py-4">
-                      <p class="font-bold text-gray-200">{{ fmtDateTime(b.createdAt) }}</p>
-                      <p class="mt-0.5 font-mono text-[10px] text-gray-600">{{ b.fileName.split('/').pop() }}</p>
-                    </td>
-                    <td class="px-6 py-4 text-gray-400">{{ formatSize(b.fileSize) }}</td>
-                    <td class="px-6 py-4">
-                      <span
-                        :class="[
-                          'rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-tighter',
-                          b.status === 'success' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400',
-                        ]"
-                      >
-                        {{ b.status }}
-                      </span>
-                    </td>
-                    <td class="px-6 py-4 text-right">
-                      <button
-                        v-if="b.status === 'success'"
-                        @click="restoreFrom(b)"
-                        :disabled="actionLoading"
-                        class="rounded-lg bg-gray-800 px-4 py-2 font-black uppercase tracking-widest text-violet-400 transition-all hover:bg-violet-600 hover:text-white disabled:opacity-50"
-                      >
-                        Restore
-                      </button>
-                    </td>
-                  </tr>
-                  <tr v-if="backups.length === 0">
-                    <td colspan="4" class="px-6 py-12 text-center text-gray-600 italic">
-                      No backups found for this institution.
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+            <!-- Start Trial -->
+            <div class="rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-900/20">
+              <p class="text-xs font-bold text-blue-700 mb-2">▶ Start / Reset Trial</p>
+              <div class="flex gap-2">
+                <input v-model.number="trialDays" type="number" min="1" max="90"
+                  class="w-20 rounded border border-blue-300 bg-white px-2 py-1 text-xs dark:border-blue-700 dark:bg-gray-800 dark:text-white" />
+                <span class="text-xs text-blue-600 self-center">days</span>
+                <button @click="doActivateTrial" class="flex-1 rounded bg-blue-600 px-3 py-1 text-xs font-bold text-white hover:bg-blue-700">Activate</button>
+              </div>
+            </div>
+
+            <!-- Extend Trial -->
+            <div class="rounded-lg border border-cyan-200 bg-cyan-50 p-3 dark:border-cyan-800 dark:bg-cyan-900/20">
+              <p class="text-xs font-bold text-cyan-700 mb-2">⏰ Extend Trial</p>
+              <div class="flex gap-1.5 flex-wrap">
+                <button v-for="d in [3, 7, 15, 30]" :key="d" @click="doExtendTrial(d)"
+                  class="rounded bg-cyan-600 px-2.5 py-1 text-xs font-bold text-white hover:bg-cyan-700">+{{ d }}d</button>
+              </div>
+            </div>
+
+            <!-- Upgrade Plan -->
+            <div class="rounded-lg border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-800 dark:bg-emerald-900/20">
+              <p class="text-xs font-bold text-emerald-700 mb-2">⬆ Upgrade / Set Plan</p>
+              <div class="flex gap-2 flex-wrap">
+                <select v-model="upgradePlanVal" class="flex-1 rounded border border-emerald-300 bg-white px-2 py-1 text-xs dark:border-emerald-700 dark:bg-gray-800 dark:text-white">
+                  <option value="basic">Starter (0-500)</option>
+                  <option value="standard">Growth (501-1000)</option>
+                  <option value="premium">Scale (1001-2000)</option>
+                  <option value="enterprise">Enterprise</option>
+                </select>
+                <select v-model.number="upgradeMonths" class="w-20 rounded border border-emerald-300 bg-white px-2 py-1 text-xs dark:border-emerald-700 dark:bg-gray-800 dark:text-white">
+                  <option :value="1">1 mo</option>
+                  <option :value="3">3 mo</option>
+                  <option :value="6">6 mo</option>
+                  <option :value="12">12 mo</option>
+                </select>
+                <button @click="doUpgradePlan" class="rounded bg-emerald-600 px-3 py-1 text-xs font-bold text-white hover:bg-emerald-700">Set</button>
+              </div>
+            </div>
+
+            <!-- Renew Subscription -->
+            <div class="rounded-lg border border-indigo-200 bg-indigo-50 p-3 dark:border-indigo-800 dark:bg-indigo-900/20">
+              <p class="text-xs font-bold text-indigo-700 mb-2">♻ Renew Subscription</p>
+              <div class="flex gap-1.5 flex-wrap">
+                <button v-for="m in [1, 3, 6, 12]" :key="m" @click="doRenew(m)"
+                  class="rounded bg-indigo-600 px-2.5 py-1 text-xs font-bold text-white hover:bg-indigo-700">+{{ m }}mo</button>
+              </div>
+            </div>
+
+            <!-- Suspend -->
+            <div class="rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-900/20">
+              <p class="text-xs font-bold text-red-700 mb-2">🔴 Suspend / Block</p>
+              <div class="flex gap-2">
+                <button @click="doSuspend" class="flex-1 rounded bg-red-600 px-3 py-1 text-xs font-bold text-white hover:bg-red-700">Suspend Now</button>
+                <button @click="doExpire" class="flex-1 rounded bg-gray-600 px-3 py-1 text-xs font-bold text-white hover:bg-gray-700">Mark Expired</button>
+              </div>
+            </div>
+
+            <!-- Reactivate -->
+            <div class="rounded-lg border border-green-200 bg-green-50 p-3 dark:border-green-800 dark:bg-green-900/20">
+              <p class="text-xs font-bold text-green-700 mb-2">✅ Reactivate</p>
+              <button @click="doActivate" class="w-full rounded bg-green-600 px-3 py-1 text-xs font-bold text-white hover:bg-green-700">Reactivate School</button>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Subscription Audit History -->
+        <div class="rounded-xl border border-gray-200 dark:border-gray-700">
+          <div class="border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-4 py-2.5 rounded-t-xl">
+            <p class="text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400">📋 Subscription History</p>
+          </div>
+          <div class="divide-y divide-gray-50 dark:divide-gray-800">
+            <div v-if="!history.length" class="p-6 text-center text-sm text-gray-400">No history yet.</div>
+            <div v-for="ev in history" :key="ev.id" class="flex items-start gap-3 px-4 py-3">
+              <span class="mt-0.5 text-base">{{ eventIcon(ev.action) }}</span>
+              <div class="flex-1">
+                <p class="text-xs font-bold text-gray-800 dark:text-white capitalize">{{ ev.action.replace(/_/g, ' ') }}</p>
+                <p class="text-xs text-gray-500 mt-0.5">{{ ev.note }}</p>
+              </div>
+              <div class="text-right">
+                <p class="text-[10px] text-gray-400">{{ fmtDatetime(ev.performed_at) }}</p>
+                <p class="text-[10px] text-gray-500 font-bold">{{ ev.performed_by }}</p>
+              </div>
             </div>
           </div>
         </div>
       </div>
-    </template>
+
+    </div>
+  </div>
+
+  <div v-else class="flex items-center justify-center py-20">
+    <p class="text-gray-400">Institution not found.</p>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
-import api from '@/services/api'
+import { ref, computed, h } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { useTenantsStore } from '@/stores/tenants'
 import { useToastStore } from '@/stores/toast'
-import { extractApiErrorMessage } from '@/services/superadminService'
+import { SUBSCRIPTION_PRICING, TRIAL_DAYS_DEFAULT, calcMonthlyBill } from '@/types'
 
 const route = useRoute()
+const router = useRouter()
+const tenantStore = useTenantsStore()
 const toast = useToastStore()
 
-const loading = ref(true)
-const error = ref('')
-const actionLoading = ref(false)
-const lastAction = ref('')
-const activeTab = ref('Overview')
+const slug = computed(() => route.params.slug as string)
+const tenant = computed(() => tenantStore.tenants.find((t) => t.slug === slug.value || t.id === slug.value))
 
-const tenant = ref<any>(null)
-const auditLog = ref<any[]>([])
-const backups = ref<any[]>([])
+// ── Inline mini-components (no template strings) ────────────────
 
-async function loadTenant() {
-  loading.value = true
-  error.value = ''
-  try {
-    const res = await api.get(`/superadmin/tenants/${route.params.id}`)
-    const data = res.data?.data
-    tenant.value = data?.tenant ?? data
-    auditLog.value = Array.isArray(data?.auditLogs) ? data.auditLogs : Array.isArray(data?.auditLog) ? data.auditLog : []
-
-    // Fetch backups separately
-    await loadBackups()
-  } catch (e) {
-    error.value = extractApiErrorMessage(e, 'Failed to load institution')
-  } finally {
-    loading.value = false
-  }
+const StatusPill = {
+  props: { status: String, size: { type: String, default: 'sm' } },
+  setup(props: any) {
+    return () => {
+      const cfg: Record<string, { label: string; cls: string }> = {
+        active:    { label: 'Active',    cls: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' },
+        trial:     { label: 'Trial',     cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' },
+        expired:   { label: 'Expired',   cls: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' },
+        suspended: { label: 'Suspended', cls: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300' },
+      }
+      const c = cfg[props.status] ?? cfg.suspended
+      const sizeClass = props.size === 'lg' ? 'px-4 py-1.5 text-sm' : 'px-2.5 py-0.5 text-[10px]'
+      return h('span', { class: `rounded-full font-black uppercase tracking-wider ${sizeClass} ${c.cls}` }, c.label)
+    }
+  },
 }
 
-async function loadBackups() {
-  try {
-    const res = await api.get(`/backups/${route.params.id}`)
-    backups.value = res.data?.data || []
-  } catch (e) {
-    console.warn('Failed to load backups', e)
-  }
+const StatCard = {
+  props: { label: String, value: String, color: String, icon: String },
+  setup(props: any) {
+    return () => {
+      const colorMap: Record<string, string> = {
+        blue: 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800',
+        emerald: 'bg-emerald-50 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-800',
+        amber: 'bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800',
+        green: 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800',
+        red: 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800',
+      }
+      return h('div', { class: `rounded-xl border p-4 text-center ${colorMap[props.color] ?? colorMap.blue}` }, [
+        h('div', { class: 'text-2xl mb-1' }, props.icon),
+        h('p', { class: 'text-2xl font-black text-gray-800 dark:text-white' }, props.value),
+        h('p', { class: 'text-[10px] font-bold uppercase tracking-wider text-gray-500 mt-0.5' }, props.label),
+      ])
+    }
+  },
 }
 
-onMounted(loadTenant)
+// ── Tabs ───────────────────────────────────────────────────────
+const activeTab = ref('subscription')
+const tabs = [
+  { id: 'overview', label: 'Overview', icon: '📊' },
+  { id: 'subscription', label: 'Subscription', icon: '💳' },
+]
 
-async function doSuspend() {
-  if (!confirm(`Suspend ${tenant.value?.name}? Their users will lose access immediately.`)) return
-  actionLoading.value = true
-  try {
-    await api.post(`/superadmin/tenants/${route.params.id}/suspend`)
-    tenant.value.status = 'suspended'
-    toast.warning(`${tenant.value.name} suspended`)
-  } catch (e) {
-    toast.error(extractApiErrorMessage(e, 'Failed to suspend'))
-  } finally {
-    actionLoading.value = false
+// ── Computed ───────────────────────────────────────────────────
+const daysRemaining = computed(() => {
+  if (!tenant.value) return 0
+  return tenantStore.getDaysRemaining(tenant.value)
+})
+
+const billResult = computed(() => calcMonthlyBill(tenant.value?.total_students ?? 0))
+const monthlyBillDisplay = computed(() => {
+  const r = billResult.value
+  return r.amount !== null ? '₹' + r.amount.toLocaleString('en-IN') : 'Contact Us'
+})
+
+const history = computed(() => tenant.value?.subscription_history ?? [])
+const pricingTiers = SUBSCRIPTION_PRICING
+
+const statusLabel = computed(() => {
+  const m: Record<string, string> = {
+    active: '✅ Active Subscription',
+    trial: '🟡 Trial Period',
+    expired: '🔴 Expired',
+    suspended: '⛔ Suspended',
   }
+  return m[tenant.value?.subscription_status ?? ''] ?? 'Unknown'
+})
+
+const statusBannerClass = computed(() => {
+  const m: Record<string, string> = {
+    active: 'bg-green-50 border-green-300 text-green-900 dark:bg-green-900/20 dark:border-green-700 dark:text-green-200',
+    trial: 'bg-amber-50 border-amber-300 text-amber-900 dark:bg-amber-900/20 dark:border-amber-700 dark:text-amber-200',
+    expired: 'bg-red-50 border-red-300 text-red-900 dark:bg-red-900/20 dark:border-red-700 dark:text-red-200',
+    suspended: 'bg-gray-50 border-gray-300 text-gray-900 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-200',
+  }
+  return m[tenant.value?.subscription_status ?? ''] ?? m.suspended
+})
+
+// ── Form state ─────────────────────────────────────────────────
+const trialDays = ref(TRIAL_DAYS_DEFAULT)
+const upgradePlanVal = ref<'basic' | 'standard' | 'premium' | 'enterprise'>('basic')
+const upgradeMonths = ref(12)
+
+// ── Actions ────────────────────────────────────────────────────
+function doActivateTrial() {
+  if (!tenant.value) return
+  if (!confirm(`Start a ${trialDays.value}-day trial for ${tenant.value.name}?`)) return
+  tenantStore.activateTrial(tenant.value.id, trialDays.value)
+  toast.success(`${trialDays.value}-day trial activated for ${tenant.value.name}`)
+}
+
+function doExtendTrial(days: number) {
+  if (!tenant.value) return
+  tenantStore.extendTrial(tenant.value.id, days)
+  toast.success(`Trial extended by ${days} days`)
+}
+
+function doUpgradePlan() {
+  if (!tenant.value) return
+  tenantStore.upgradePlan(tenant.value.id, upgradePlanVal.value, upgradeMonths.value)
+  toast.success(`Plan upgraded to ${upgradePlanVal.value} for ${upgradeMonths.value} months`)
+}
+
+function doRenew(months: number) {
+  if (!tenant.value) return
+  tenantStore.renewSubscription(tenant.value.id, months)
+  toast.success(`Subscription renewed for ${months} months`)
+}
+
+function doSuspend() {
+  if (!tenant.value) return
+  if (!confirm(`Suspend ${tenant.value.name}? They will be blocked immediately.`)) return
+  tenantStore.suspendTenant(tenant.value.id)
+  toast.success(`${tenant.value.name} suspended`)
+}
+
+function doExpire() {
+  if (!tenant.value) return
+  if (!confirm(`Mark ${tenant.value.name} as expired?`)) return
+  tenantStore.expireTenant(tenant.value.id)
+  toast.success(`${tenant.value.name} marked as expired`)
 }
 
 async function doActivate() {
-  actionLoading.value = true
-  try {
-    await api.post(`/superadmin/tenants/${route.params.id}/activate`)
-    tenant.value.status = 'active'
-    toast.success(`${tenant.value.name} reactivated`)
-  } catch (e) {
-    toast.error(extractApiErrorMessage(e, 'Failed to reactivate'))
-  } finally {
-    actionLoading.value = false
+  if (!tenant.value) return
+  await tenantStore.activateTenant(tenant.value.id)
+  toast.success(`${tenant.value.name} reactivated`)
+}
+
+// ── Helpers ────────────────────────────────────────────────────
+function fmtDate(iso: string) {
+  return new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+function fmtDatetime(iso: string) {
+  return new Date(iso).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+}
+
+function eventIcon(action: string): string {
+  const m: Record<string, string> = {
+    trial_started: '▶️',
+    trial_extended: '⏰',
+    plan_upgraded: '⬆️',
+    subscription_renewed: '♻️',
+    suspended: '🔴',
+    activated: '✅',
+    expired: '💀',
   }
-}
-
-// ── Maintenance Actions ─────────────────────────────────────────────
-
-async function seedDemo() {
-  if (!confirm('Populate with demo data? This is for testing only.')) return
-  actionLoading.value = true
-  lastAction.value = 'seed'
-  try {
-    // We need to pass the tenant-slug for requireSchoolContext
-    await api.post(
-      '/maintenance/seed-demo',
-      {},
-      {
-        headers: { 'x-tenant-slug': tenant.value.slug },
-      },
-    )
-    toast.success('Institution seeded with sample records.')
-    await loadTenant()
-  } catch (e) {
-    toast.error(extractApiErrorMessage(e, 'Seeding failed'))
-  } finally {
-    actionLoading.value = false
-  }
-}
-
-async function purgeData() {
-  if (!confirm('DANGER: This will WIPE ALL transactional data for this institution. Are you absolutely certain?'))
-    return
-  if (!confirm('FINAL WARNING: This action cannot be undone unless you have a backup.')) return
-  actionLoading.value = true
-  lastAction.value = 'purge'
-  try {
-    await api.post(
-      '/maintenance/clear-data',
-      {},
-      {
-        headers: { 'x-tenant-slug': tenant.value.slug },
-      },
-    )
-    toast.warning('All institutional records have been cleared.')
-    await loadTenant()
-  } catch (e) {
-    toast.error(extractApiErrorMessage(e, 'Purge failed'))
-  } finally {
-    actionLoading.value = false
-  }
-}
-
-async function takeBackup() {
-  actionLoading.value = true
-  lastAction.value = 'backup'
-  try {
-    await api.post(`/backups/${route.params.id}`)
-    toast.success('Snapshot created successfully.')
-    await loadBackups()
-  } catch (e) {
-    toast.error(extractApiErrorMessage(e, 'Backup failed'))
-  } finally {
-    actionLoading.value = false
-  }
-}
-
-async function restoreFrom(backup: any) {
-  if (!confirm(`Restore to snapshot from ${fmtDateTime(backup.createdAt)}?`)) return
-  if (!confirm('DANGER: This will OVERWRITE the current database with the backup data.')) return
-  actionLoading.value = true
-  lastAction.value = 'restore'
-  try {
-    await api.post(`/backups/${route.params.id}/restore/${backup.id}`)
-    toast.success('Database restored successfully.')
-    await loadTenant()
-  } catch (e) {
-    toast.error(extractApiErrorMessage(e, 'Restore failed'))
-  } finally {
-    actionLoading.value = false
-  }
-}
-
-// ── Helpers ─────────────────────────────────────────────────────────
-
-const statusBadge = computed(() => {
-  if (!tenant.value) return ''
-  const s = tenant.value.status
-  if (s === 'active') return 'bg-emerald-500/10 text-emerald-400'
-  if (s === 'trial') return 'bg-amber-500/10 text-amber-400'
-  return 'bg-red-500/10 text-red-400'
-})
-
-const statusBar = computed(() => {
-  if (!tenant.value) return ''
-  const s = tenant.value.status
-  if (s === 'active') return 'from-emerald-500 to-teal-500'
-  if (s === 'trial') return 'from-amber-500 to-orange-500'
-  return 'from-red-500 to-rose-500'
-})
-
-const statCards = computed(() =>
-  tenant.value
-    ? [
-        { label: 'Total Students', value: (tenant.value.totalStudents ?? 0).toLocaleString('en-IN') },
-        { label: 'Total Staff', value: (tenant.value.totalStaff ?? 0).toLocaleString('en-IN') },
-        { label: 'Plan', value: (tenant.value.plan ?? 'N/A').toUpperCase() },
-        { label: 'Inst. Code', value: tenant.value.institutionCode || 'N/A' },
-      ]
-    : [],
-)
-
-function fmtDate(iso: string | undefined): string {
-  if (!iso) return 'N/A'
-  return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-}
-
-function fmtDateTime(iso: string | undefined): string {
-  if (!iso) return 'N/A'
-  return new Date(iso).toLocaleString('en-IN', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
-
-function formatSize(bytes: number) {
-  if (bytes === 0) return '0 B'
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
-}
-
-function auditIcon(action: string): { icon: string; bg: string } {
-  if (action === 'ONBOARD') return { icon: '🚀', bg: 'bg-violet-500/10' }
-  if (action === 'SUSPEND') return { icon: '🔴', bg: 'bg-red-500/10' }
-  if (action === 'ACTIVATE') return { icon: '✅', bg: 'bg-emerald-500/10' }
-  if (action === 'PLAN_CHANGE') return { icon: '⚡', bg: 'bg-amber-500/10' }
-  if (action.includes('backup')) return { icon: '🛡️', bg: 'bg-indigo-500/10' }
-  if (action.includes('maintenance')) return { icon: '🛠️', bg: 'bg-amber-500/10' }
-  return { icon: '📋', bg: 'bg-gray-700/50' }
+  return m[action] ?? '📌'
 }
 </script>
-
-<style scoped>
-.custom-scrollbar::-webkit-scrollbar {
-  width: 4px;
-}
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.1);
-  border-radius: 10px;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(139, 92, 246, 0.2);
-  border-radius: 10px;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(139, 92, 246, 0.4);
-}
-</style>

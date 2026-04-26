@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue'
 import type { SmsLog } from '@/types'
 import { useToastStore } from './toast'
 import { saveToStorage, loadFromStorage } from '@/utils/storage'
+import { smsService, type SendSmsPayload } from '@/services/smsService'
 
 export const useSmsStore = defineStore('sms', () => {
   const toast = useToastStore()
@@ -81,6 +82,7 @@ export const useSmsStore = defineStore('sms', () => {
   const logs = ref<SmsLog[]>(savedLogs || [...demoLogs])
   const preferredChannel = ref<'sms' | 'whatsapp'>('whatsapp')
   const sending = ref(false)
+  const loadingBackend = ref(false)
 
   watch(logs, (val) => saveToStorage('sms_logs', val), { deep: true })
 
@@ -92,6 +94,48 @@ export const useSmsStore = defineStore('sms', () => {
   const smsCount = computed(
     () => logs.value.filter((l) => (l.channel || 'sms') === 'sms' && l.status === 'sent').length,
   )
+
+  function localId() {
+    return Date.now() + Math.floor(Math.random() * 1000)
+  }
+
+  function replaceLocalLog(localLogId: number, backendLog: SmsLog) {
+    const idx = logs.value.findIndex((log) => log.id === localLogId)
+    if (idx !== -1) {
+      logs.value[idx] = backendLog
+    }
+  }
+
+  function markLocalLogFailed(localLogId: number) {
+    const idx = logs.value.findIndex((log) => log.id === localLogId)
+    if (idx !== -1) {
+      logs.value[idx] = { ...logs.value[idx], status: 'failed' }
+    }
+  }
+
+  async function persistOutbound(localLogId: number, payload: SendSmsPayload) {
+    if (!localStorage.getItem('auth_token')) return
+    try {
+      const response = await smsService.send(payload)
+      replaceLocalLog(localLogId, response.data)
+    } catch {
+      markLocalLogFailed(localLogId)
+      toast.error('Message delivery sync failed')
+    }
+  }
+
+  async function fetchLogs(params?: Parameters<typeof smsService.getLogs>[0]) {
+    if (!localStorage.getItem('auth_token')) return
+    loadingBackend.value = true
+    try {
+      const response = await smsService.getLogs(params || { page: 1, per_page: 100 })
+      logs.value = response.data.items
+    } catch {
+      toast.error('Failed to load communication logs')
+    } finally {
+      loadingBackend.value = false
+    }
+  }
 
   function templateById(templateId: string) {
     return templates.find((t) => t.id === templateId)
@@ -120,7 +164,7 @@ export const useSmsStore = defineStore('sms', () => {
     const message = `Payment of Rs ${amount.toLocaleString('en-IN')} received for ${feeName}. Receipt: ${receiptNumber}.${balanceText} Thank you!`
 
     const log: SmsLog = {
-      id: Date.now(),
+      id: localId(),
       phone,
       student_name: studentName,
       message,
@@ -131,6 +175,14 @@ export const useSmsStore = defineStore('sms', () => {
       template_id: 'payment_receipt_v1',
     }
     logs.value.unshift(log)
+    void persistOutbound(log.id, {
+      phone,
+      student_name: studentName,
+      message,
+      type: 'payment',
+      channel,
+      template_id: 'payment_receipt_v1',
+    })
     toast.success(`${channel === 'whatsapp' ? 'WhatsApp' : 'SMS'} sent to ${phone}`)
     return log
   }
@@ -147,7 +199,7 @@ export const useSmsStore = defineStore('sms', () => {
     const message = `Reminder: ${feeName} of Rs ${amount.toLocaleString('en-IN')} is due for ${studentName} (${className}). Please pay before ${dueDate}.`
 
     const log: SmsLog = {
-      id: Date.now(),
+      id: localId(),
       phone,
       student_name: studentName,
       message,
@@ -158,6 +210,14 @@ export const useSmsStore = defineStore('sms', () => {
       template_id: 'fee_due_v1',
     }
     logs.value.unshift(log)
+    void persistOutbound(log.id, {
+      phone,
+      student_name: studentName,
+      message,
+      type: 'due_reminder',
+      channel,
+      template_id: 'fee_due_v1',
+    })
     toast.success(`Due reminder sent via ${channel === 'whatsapp' ? 'WhatsApp' : 'SMS'} to ${phone}`)
     return log
   }
@@ -191,7 +251,7 @@ export const useSmsStore = defineStore('sms', () => {
     templateId?: string,
   ) {
     const log: SmsLog = {
-      id: Date.now(),
+      id: localId(),
       phone,
       student_name: studentName,
       message,
@@ -202,6 +262,14 @@ export const useSmsStore = defineStore('sms', () => {
       template_id: templateId,
     }
     logs.value.unshift(log)
+    void persistOutbound(log.id, {
+      phone,
+      student_name: studentName,
+      message,
+      type: 'general',
+      channel,
+      template_id: templateId,
+    })
     toast.success(`${channel === 'whatsapp' ? 'WhatsApp' : 'SMS'} sent to ${phone}`)
     return log
   }
@@ -241,7 +309,7 @@ export const useSmsStore = defineStore('sms', () => {
 
   function sendNoticeSms(phone: string, studentName: string, title: string, message: string) {
     const log: SmsLog = {
-      id: Date.now(),
+      id: localId(),
       phone,
       student_name: studentName,
       message: `NOTICE: ${title} - ${message}`,
@@ -251,12 +319,19 @@ export const useSmsStore = defineStore('sms', () => {
       channel: preferredChannel.value,
     }
     logs.value.unshift(log)
+    void persistOutbound(log.id, {
+      phone,
+      student_name: studentName,
+      message: log.message,
+      type: 'notice',
+      channel: preferredChannel.value,
+    })
     return log
   }
 
   function sendScheduleSms(phone: string, studentName: string, message: string) {
     const log: SmsLog = {
-      id: Date.now(),
+      id: localId(),
       phone,
       student_name: studentName,
       message,
@@ -266,6 +341,13 @@ export const useSmsStore = defineStore('sms', () => {
       channel: preferredChannel.value,
     }
     logs.value.unshift(log)
+    void persistOutbound(log.id, {
+      phone,
+      student_name: studentName,
+      message,
+      type: 'schedule',
+      channel: preferredChannel.value,
+    })
     return log
   }
 
@@ -276,6 +358,7 @@ export const useSmsStore = defineStore('sms', () => {
   return {
     logs,
     sending,
+    loadingBackend,
     templates,
     channelOptions,
     preferredChannel,
@@ -283,6 +366,7 @@ export const useSmsStore = defineStore('sms', () => {
     failedCount,
     whatsappCount,
     smsCount,
+    fetchLogs,
     setPreferredChannel,
     applyTemplate,
     sendPaymentSms,

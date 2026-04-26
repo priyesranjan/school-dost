@@ -11,6 +11,95 @@
       </p>
     </div>
 
+    <!-- ===== Subscription Validity Card ===== -->
+    <div v-if="subscription" :class="['mb-6 rounded-2xl border-2 p-4 transition-all', subCardClass]">
+      <div class="flex flex-wrap items-center justify-between gap-4">
+        <!-- Left: Title + Status -->
+        <div class="flex items-center gap-3">
+          <div :class="['flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-2xl', subIconBg]">
+            {{ subIcon }}
+          </div>
+          <div>
+            <p class="text-[10px] font-bold uppercase tracking-wider" :class="subTextMuted">Software License</p>
+            <p class="text-lg font-black" :class="subTextColor">{{ subStatusLabel }}</p>
+            <p class="text-xs mt-0.5" :class="subTextMuted">
+              <span v-if="subscription.subscription_status === 'trial'">
+                🆓 Free Trial &middot; Ends <strong>{{ fmtDate(subscription.trial_ends_at) }}</strong>
+              </span>
+              <span v-else-if="subscription.subscription_status === 'active'">
+                ✅ Valid Until <strong>{{ fmtDate(subscription.subscription_end) }}</strong>
+              </span>
+              <span v-else-if="subscription.subscription_status === 'expired'">
+                ❌ Expired on <strong>{{ fmtDate(subscription.trial_ends_at || subscription.subscription_end) }}</strong>
+              </span>
+              <span v-else>⛔ Account Suspended</span>
+            </p>
+          </div>
+        </div>
+
+        <!-- Center: Days remaining ring -->
+        <div class="flex items-center gap-4">
+          <div class="relative h-20 w-20">
+            <svg class="h-full w-full -rotate-90" viewBox="0 0 100 100">
+              <circle class="opacity-20" :stroke="subRingColor" stroke-width="10" fill="transparent" r="40" cx="50" cy="50" />
+              <circle
+                :stroke="subRingColor"
+                stroke-width="10"
+                :stroke-dasharray="2 * Math.PI * 40"
+                :stroke-dashoffset="2 * Math.PI * 40 * (1 - Math.min(subDaysLeft / subTotalDays, 1))"
+                stroke-linecap="round"
+                fill="transparent"
+                r="40" cx="50" cy="50"
+                class="transition-all duration-700"
+              />
+            </svg>
+            <div class="absolute inset-0 flex flex-col items-center justify-center">
+              <span class="text-lg font-black" :class="subTextColor">{{ subDaysLeft }}</span>
+              <span class="text-[9px] font-bold uppercase" :class="subTextMuted">days</span>
+            </div>
+          </div>
+          <div class="space-y-1">
+            <div>
+              <p class="text-[10px] font-bold uppercase tracking-wider" :class="subTextMuted">Plan</p>
+              <p class="font-black capitalize" :class="subTextColor">{{ subscription.subscription_plan }}</p>
+            </div>
+            <div>
+              <p class="text-[10px] font-bold uppercase tracking-wider" :class="subTextMuted">Monthly Bill</p>
+              <p class="font-black" :class="subTextColor">{{ monthlyBillDisplay }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: CTA -->
+        <div class="flex flex-col gap-2">
+          <p class="text-xs font-bold" :class="subTextColor">
+            {{ subDaysLeft <= 3 ? '🚨 URGENT: Renew immediately!' : subDaysLeft <= 7 ? '⚠️ Renew soon to avoid disruption' : '📞 Contact admin for renewal' }}
+          </p>
+          <a
+            href="mailto:support@schooldost.in?subject=Subscription Renewal"
+            :class="['rounded-xl px-4 py-2 text-center text-xs font-black text-white transition-all hover:scale-105', subBtnColor]"
+          >
+            {{ subscription.subscription_status === 'expired' ? '🔓 Renew Now' : '📧 Contact for Renewal' }}
+          </a>
+          <p class="text-[10px] text-center" :class="subTextMuted">support@schooldost.in</p>
+        </div>
+      </div>
+
+      <!-- Expiry progress bar -->
+      <div class="mt-3">
+        <div class="flex justify-between text-[10px] font-bold mb-1" :class="subTextMuted">
+          <span>Validity Progress</span>
+          <span>{{ Math.min(Math.round((subDaysLeft / subTotalDays) * 100), 100) }}% remaining</span>
+        </div>
+        <div class="h-2 rounded-full bg-black/10 overflow-hidden">
+          <div
+            :class="['h-full rounded-full transition-all duration-700', subProgressColor]"
+            :style="{ width: Math.min((subDaysLeft / subTotalDays) * 100, 100) + '%' }"
+          />
+        </div>
+      </div>
+    </div>
+
     <div class="flex gap-6">
       <!-- ===== Main Content ===== -->
       <div class="flex-1 min-w-0 space-y-6">
@@ -498,6 +587,8 @@ import { useAttendanceStore } from '@/stores/attendance'
 import { useStaffStore } from '@/stores/staff'
 import { useCalendarStore } from '@/stores/calendar'
 import { useExamStore } from '@/stores/exams'
+import { useTenantsStore } from '@/stores/tenants'
+import { calcMonthlyBill } from '@/types'
 
 const authStore = useAuthStore()
 const studentStore = useStudentStore()
@@ -506,6 +597,104 @@ const attendanceStore = useAttendanceStore()
 const staffStore = useStaffStore()
 const calendarStore = useCalendarStore()
 const examStore = useExamStore()
+const tenantStore = useTenantsStore()
+
+// ── Subscription info for this school ────────────────────
+const subscription = computed(() => {
+  const tenantId = authStore.user?.tenant_id
+  if (tenantId) return tenantStore.tenants.find((t) => t.id === tenantId) ?? null
+  // Demo fallback: if no tenant_id (local dev), show first school tenant
+  if (authStore.user?.role !== 'superadmin') {
+    return tenantStore.tenants.find((t) => t.subscription_status !== undefined) ?? null
+  }
+  return null // superadmin sees no card
+})
+
+const subDaysLeft = computed(() => subscription.value ? tenantStore.getDaysRemaining(subscription.value) : 0)
+
+// Total days in the subscription/trial period for progress bar
+const subTotalDays = computed(() => {
+  const s = subscription.value
+  if (!s) return 15
+  if (s.subscription_status === 'trial') {
+    // trial is always 15 days total
+    return 15
+  }
+  // For active: calculate span from onboarded_at to subscription_end
+  if (s.subscription_end && s.onboarded_at) {
+    const start = new Date(s.onboarded_at).getTime()
+    const end = new Date(s.subscription_end).getTime()
+    const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24))
+    return days > 0 ? days : 30
+  }
+  return 30
+})
+
+const monthlyBillDisplay = computed(() => {
+  const r = calcMonthlyBill(subscription.value?.total_students ?? 0)
+  return r.amount !== null ? '₹' + r.amount.toLocaleString('en-IN') + '/mo' : 'Contact Us'
+})
+
+function fmtDate(iso?: string) {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+// Visual variants based on status
+const subStatus = computed(() => subscription.value?.subscription_status ?? 'active')
+const subStatusLabel = computed(() => {
+  const m: Record<string, string> = {
+    active: '✅ Active Subscription',
+    trial: '🟡 Trial Period Active',
+    expired: '🔴 Subscription Expired',
+    suspended: '⛔ Account Suspended',
+  }
+  return m[subStatus.value] ?? 'Unknown'
+})
+
+const subCardClass = computed(() => {
+  if (subStatus.value === 'expired' || subStatus.value === 'suspended') return 'border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-900/20'
+  if (subDaysLeft.value <= 3) return 'border-red-400 bg-red-50 dark:border-red-700 dark:bg-red-900/20'
+  if (subDaysLeft.value <= 7) return 'border-amber-400 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/20'
+  return 'border-green-300 bg-green-50 dark:border-green-800 dark:bg-green-900/20'
+})
+const subTextColor = computed(() => {
+  if (subStatus.value === 'expired' || subStatus.value === 'suspended' || subDaysLeft.value <= 3) return 'text-red-700 dark:text-red-400'
+  if (subDaysLeft.value <= 7) return 'text-amber-700 dark:text-amber-400'
+  return 'text-green-700 dark:text-green-400'
+})
+const subTextMuted = computed(() => {
+  if (subStatus.value === 'expired' || subStatus.value === 'suspended' || subDaysLeft.value <= 3) return 'text-red-500 dark:text-red-500/80'
+  if (subDaysLeft.value <= 7) return 'text-amber-600 dark:text-amber-500/80'
+  return 'text-green-600 dark:text-green-500/80'
+})
+const subIcon = computed(() => {
+  if (subStatus.value === 'expired') return '🔒'
+  if (subStatus.value === 'suspended') return '⛔'
+  if (subDaysLeft.value <= 3) return '🚨'
+  if (subDaysLeft.value <= 7) return '⌛'
+  return '📊'
+})
+const subIconBg = computed(() => {
+  if (subStatus.value === 'expired' || subDaysLeft.value <= 3) return 'bg-red-100 dark:bg-red-900/40'
+  if (subDaysLeft.value <= 7) return 'bg-amber-100 dark:bg-amber-900/40'
+  return 'bg-green-100 dark:bg-green-900/40'
+})
+const subRingColor = computed(() => {
+  if (subStatus.value === 'expired' || subDaysLeft.value <= 3) return '#ef4444'
+  if (subDaysLeft.value <= 7) return '#f59e0b'
+  return '#22c55e'
+})
+const subProgressColor = computed(() => {
+  if (subStatus.value === 'expired' || subDaysLeft.value <= 3) return 'bg-red-500'
+  if (subDaysLeft.value <= 7) return 'bg-amber-500'
+  return 'bg-green-500'
+})
+const subBtnColor = computed(() => {
+  if (subStatus.value === 'expired' || subDaysLeft.value <= 3) return 'bg-red-600 hover:bg-red-700'
+  if (subDaysLeft.value <= 7) return 'bg-amber-600 hover:bg-amber-700'
+  return 'bg-blue-600 hover:bg-blue-700'
+})
 
 const currentDate = new Date().toLocaleDateString('en-US', {
   weekday: 'long',

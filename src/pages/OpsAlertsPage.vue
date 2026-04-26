@@ -7,6 +7,37 @@
       <StatCard title="SLA Compliance %" :value="slaCompliancePct" icon="✅" icon-bg="bg-emerald-50" />
     </div>
 
+    <div class="rounded-2xl border border-sky-100 bg-sky-50/60 p-4 dark:border-sky-900/40 dark:bg-sky-900/10">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p class="text-xs font-black uppercase tracking-widest text-sky-700 dark:text-sky-300">Ops Intelligence Mode</p>
+          <p class="mt-1 text-sm font-medium text-sky-900 dark:text-sky-100">
+            {{ isLiveMode ? 'Live backend alerts' : 'Local fallback alerts' }}
+          </p>
+          <p class="text-xs text-sky-700/80 dark:text-sky-300/80">
+            Window: last {{ livePeriodDays }} days
+            <span v-if="liveGeneratedAtLabel"> · Updated {{ liveGeneratedAtLabel }}</span>
+          </p>
+        </div>
+        <div class="flex items-center gap-2">
+          <span
+            :class="[
+              'rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-widest',
+              isLiveMode
+                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+            ]"
+          >
+            {{ liveLoading ? 'Refreshing' : isLiveMode ? 'API Live' : 'Fallback' }}
+          </span>
+          <AppButton size="sm" variant="secondary" :disabled="liveLoading" @click="refreshLiveAlerts">
+            Refresh
+          </AppButton>
+        </div>
+      </div>
+      <p v-if="liveError" class="mt-2 text-xs font-medium text-amber-700 dark:text-amber-300">{{ liveError }}</p>
+    </div>
+
     <AppCard title="Weekly Analytics">
       <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">Top source: {{ topSourceLabel }}</p>
       <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -126,11 +157,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { useNotificationStore } from '@/stores/notifications'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { useNotificationStore, type Notification } from '@/stores/notifications'
 import { useSettingsStore } from '@/stores/settings'
 import { useToastStore } from '@/stores/toast'
+import { opsAlertsService } from '@/services/opsAlertsService'
 import { exportToCsv } from '@/utils/export'
+import type { OpsAlertItem } from '@/types'
 import AppCard from '@/components/ui/AppCard.vue'
 import AppInput from '@/components/ui/AppInput.vue'
 import AppButton from '@/components/ui/AppButton.vue'
@@ -145,6 +178,133 @@ const severityFilter = ref('')
 const stateFilter = ref('')
 const query = ref('')
 const selectedIds = ref<number[]>([])
+const liveAlerts = ref<OpsAlertItem[]>([])
+const liveLoading = ref(false)
+const liveError = ref<string | null>(null)
+const liveGeneratedAt = ref<string | null>(null)
+const livePeriodDays = ref(7)
+const runtimeState = ref<Record<number, { read: boolean; muted_until: string | null; acknowledged_at: string | null }>>({})
+const clearedIds = ref<number[]>([])
+let refreshHandle: ReturnType<typeof setInterval> | null = null
+
+const isLiveMode = computed(() => liveAlerts.value.length > 0)
+
+function normalizeSystemAlert(alert: {
+  id: number
+  title: string
+  message: string
+  read: boolean
+  timestamp: string
+  severity?: string | null
+  source_key?: string | null
+  muted_until?: string | null
+  acknowledged_at?: string | null
+}): OpsAlertItem {
+  const severity = alert.severity === 'critical' || alert.severity === 'warning' || alert.severity === 'info'
+    ? alert.severity
+    : 'info'
+
+  return {
+    id: alert.id,
+    type: 'system',
+    title: alert.title,
+    message: alert.message,
+    read: Boolean(alert.read),
+    timestamp: alert.timestamp,
+    severity,
+    source_key: alert.source_key || null,
+    muted_until: alert.muted_until || null,
+    acknowledged_at: alert.acknowledged_at || null,
+  }
+}
+
+const fallbackAlerts = computed(() =>
+  notifStore.notifications
+    .filter((n) => n.type === 'system')
+    .map((n) => normalizeSystemAlert(n as Notification)),
+)
+
+const baseAlerts = computed(() => (isLiveMode.value ? liveAlerts.value : fallbackAlerts.value))
+
+const systemAlerts = computed(() => {
+  return baseAlerts.value
+    .map((n) => {
+      const override = runtimeState.value[n.id]
+      if (!override) return n
+      return {
+        ...n,
+        read: override.read,
+        muted_until: override.muted_until,
+        acknowledged_at: override.acknowledged_at,
+      }
+    })
+    .filter((n) => !clearedIds.value.includes(n.id))
+})
+
+const liveGeneratedAtLabel = computed(() => {
+  if (!liveGeneratedAt.value) return ''
+  return new Date(liveGeneratedAt.value).toLocaleString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+})
+
+async function loadLiveAlerts() {
+  liveLoading.value = true
+  liveError.value = null
+  try {
+    const response = await opsAlertsService.getSnapshot(7, 200)
+    liveAlerts.value = (response.data.alerts || []).map((item) => normalizeSystemAlert(item))
+    liveGeneratedAt.value = response.data.generated_at
+    livePeriodDays.value = response.data.period_days
+
+    const idSet = new Set(liveAlerts.value.map((a) => a.id))
+    runtimeState.value = Object.fromEntries(
+      Object.entries(runtimeState.value).filter(([id]) => idSet.has(Number(id))),
+    )
+    clearedIds.value = clearedIds.value.filter((id) => idSet.has(id))
+  } catch {
+    liveAlerts.value = []
+    liveGeneratedAt.value = null
+    liveError.value = 'Unable to load backend ops alerts right now. Using local alerts.'
+  } finally {
+    liveLoading.value = false
+  }
+}
+
+async function refreshLiveAlerts() {
+  await loadLiveAlerts()
+}
+
+function applyRuntime(ids: number[], kind: 'ack' | 'snooze', minutes = 60) {
+  const now = new Date().toISOString()
+  const muteUntil = kind === 'snooze' ? new Date(Date.now() + minutes * 60000).toISOString() : null
+
+  for (const id of ids) {
+    const current = runtimeState.value[id] || { read: false, muted_until: null, acknowledged_at: null }
+    runtimeState.value[id] = {
+      read: true,
+      muted_until: muteUntil ?? current.muted_until,
+      acknowledged_at: current.acknowledged_at || now,
+    }
+  }
+}
+
+onMounted(() => {
+  void loadLiveAlerts()
+  refreshHandle = setInterval(() => {
+    void loadLiveAlerts()
+  }, 120000)
+})
+
+onUnmounted(() => {
+  if (refreshHandle) {
+    clearInterval(refreshHandle)
+    refreshHandle = null
+  }
+})
 
 const slaTargetsMinutes = computed<Record<'critical' | 'warning' | 'info', number>>(() => ({
   critical: normalizePolicyMinutes(settingsStore.settings.sla_critical_minutes, 15),
@@ -152,7 +312,6 @@ const slaTargetsMinutes = computed<Record<'critical' | 'warning' | 'info', numbe
   info: normalizePolicyMinutes(settingsStore.settings.sla_info_minutes, 240),
 }))
 
-const systemAlerts = computed(() => notifStore.notifications.filter((n) => n.type === 'system'))
 const unreadSystemCount = computed(() => systemAlerts.value.filter((n) => !n.read).length)
 const windowStart = computed(() => Date.now() - 7 * 24 * 60 * 60 * 1000)
 const alerts7d = computed(() => systemAlerts.value.filter((n) => new Date(n.timestamp).getTime() >= windowStart.value))
@@ -301,26 +460,54 @@ function toggleSelectAll(event: Event) {
 }
 
 function ack(id: number) {
+  if (isLiveMode.value) {
+    applyRuntime([id], 'ack')
+    return
+  }
   notifStore.acknowledge(id)
 }
 
 function snoozeSingle(id: number, minutes: number) {
+  if (isLiveMode.value) {
+    applyRuntime([id], 'snooze', minutes)
+    return
+  }
   notifStore.snooze(id, minutes)
 }
 
 function ackSelected() {
   if (!selectedIds.value.length) return
-  notifStore.acknowledgeMany(selectedIds.value)
+  if (isLiveMode.value) {
+    applyRuntime(selectedIds.value, 'ack')
+  } else {
+    notifStore.acknowledgeMany(selectedIds.value)
+  }
   toast.success('Selected alerts acknowledged')
 }
 
 function snoozeSelected(minutes: number) {
   if (!selectedIds.value.length) return
-  notifStore.snoozeMany(selectedIds.value, minutes)
+  if (isLiveMode.value) {
+    applyRuntime(selectedIds.value, 'snooze', minutes)
+  } else {
+    notifStore.snoozeMany(selectedIds.value, minutes)
+  }
   toast.success(`Selected alerts snoozed for ${minutes} minutes`)
 }
 
 function clearResolved() {
+  if (isLiveMode.value) {
+    const readIds = systemAlerts.value.filter((n) => n.read).map((n) => n.id)
+    if (readIds.length === 0) {
+      toast.warning('No read alerts to clear')
+      return
+    }
+    clearedIds.value = [...new Set([...clearedIds.value, ...readIds])]
+    selectedIds.value = selectedIds.value.filter((id) => !readIds.includes(id))
+    toast.success('Read alerts hidden from current snapshot')
+    return
+  }
+
   notifStore.clearReadSystemAlerts()
   selectedIds.value = []
   toast.success('Read alerts cleared')

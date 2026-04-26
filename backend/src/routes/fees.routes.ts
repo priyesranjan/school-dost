@@ -5,6 +5,7 @@ import { validateBody } from '../middleware/validation'
 import { feeStructureCreateSchema, feePaymentCreateSchema } from '../validation/schemas'
 import { createFeePayment, createFeeStructure, listFeePayments, listFeeStructures } from '../services/feesService'
 import { appendAuditLog } from '../services/auditLogService'
+import { dispatchWebhookEvent } from '../services/webhookService'
 
 function parsePage(value: unknown, fallback: number) {
   const n = Number(value)
@@ -14,6 +15,10 @@ function parsePerPage(value: unknown, fallback: number) {
   const n = Number(value)
   if (!Number.isFinite(n) || n <= 0) return fallback
   return Math.min(100, Math.floor(n))
+}
+
+function queueWebhook(task: unknown) {
+  void Promise.resolve(task).catch(() => {})
 }
 
 const router = Router()
@@ -118,6 +123,17 @@ router.post(
         target: data.receipt_number || `payment-${data.id}`,
         metadata: `student_id=${data.student_id} paid=${data.paid_amount} due=${data.due_amount}`,
       })
+      queueWebhook(dispatchWebhookEvent(req.tenantDb!, {
+        type: 'fees.payment.recorded',
+        tenant_slug: req.tenant?.slug || req.tenantSlug || req.auth?.tenantSlug || null,
+        data: {
+          payment: data,
+          actor: {
+            name: req.auth?.name || 'Unknown',
+            role: req.auth?.role || 'unknown',
+          },
+        },
+      }))
       res.json({ data })
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to record fee payment'

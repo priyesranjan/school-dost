@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
-import type { TenantSummary, InstitutionProfile, AdmissionInquiry } from '@/types'
+import type { TenantSummary, InstitutionProfile, AdmissionInquiry, SubscriptionEvent } from '@/types'
+import { calcMonthlyBill, TRIAL_DAYS_DEFAULT } from '@/types'
 import { saveToStorage, loadFromStorage } from '@/utils/storage'
 import {
   buildTenantSlug,
@@ -8,6 +9,36 @@ import {
   superadminService,
   type ProvisionTenantResult,
 } from '@/services/superadminService'
+
+const today = () => new Date().toISOString().split('T')[0]
+
+function addDays(fromDate: string | undefined, days: number): string {
+  const base = fromDate ? new Date(fromDate) : new Date()
+  if (isNaN(base.getTime())) base.setTime(Date.now())
+  base.setDate(base.getDate() + days)
+  return base.toISOString().split('T')[0]
+}
+
+function addMonths(months: number): string {
+  const d = new Date()
+  d.setMonth(d.getMonth() + months)
+  return d.toISOString().split('T')[0]
+}
+
+function makeEvent(
+  action: SubscriptionEvent['action'],
+  note?: string,
+  extra?: Partial<SubscriptionEvent>,
+): SubscriptionEvent {
+  return {
+    id: Date.now().toString(),
+    action,
+    performed_by: 'SuperAdmin',
+    performed_at: new Date().toISOString(),
+    note,
+    ...extra,
+  }
+}
 
 const demoTenants: TenantSummary[] = [
   {
@@ -25,6 +56,11 @@ const demoTenants: TenantSummary[] = [
     total_staff: 32,
     onboarded_at: '2026-01-15T00:00:00.000Z',
     logo_url: '',
+    subscription_end: addDays(undefined, 45),
+    subscription_history: [
+      makeEvent('trial_started', '15-day trial started on onboarding', { days_added: 15 }),
+      makeEvent('plan_upgraded', 'Upgraded to Premium - 12 months', { plan: 'premium' }),
+    ],
   },
   {
     id: 'tenant_sxc',
@@ -41,6 +77,8 @@ const demoTenants: TenantSummary[] = [
     total_staff: 120,
     onboarded_at: '2026-02-01T00:00:00.000Z',
     logo_url: '',
+    subscription_end: addDays(undefined, 12),
+    subscription_history: [makeEvent('plan_upgraded', 'Standard plan activated', { plan: 'standard' })],
   },
   {
     id: 'tenant_bright',
@@ -57,6 +95,29 @@ const demoTenants: TenantSummary[] = [
     total_staff: 15,
     onboarded_at: '2026-03-20T00:00:00.000Z',
     logo_url: '',
+    trial_ends_at: addDays(undefined, 4),
+    subscription_history: [makeEvent('trial_started', '15-day trial activated', { days_added: 15 })],
+  },
+  {
+    id: 'tenant_kvno1',
+    slug: 'kv-no1-ranchi',
+    name: 'KV No.1 Ranchi',
+    type: 'school',
+    city: 'Ranchi',
+    state: 'Jharkhand',
+    subscription_plan: 'trial',
+    subscription_status: 'expired',
+    admin_email: 'principal@kvno1.edu.in',
+    admin_name: 'R.K. Sharma',
+    total_students: 320,
+    total_staff: 25,
+    onboarded_at: '2026-03-01T00:00:00.000Z',
+    logo_url: '',
+    trial_ends_at: addDays(undefined, -3),
+    subscription_history: [
+      makeEvent('trial_started', '15-day trial', { days_added: 15 }),
+      makeEvent('expired', 'Trial period ended'),
+    ],
   },
 ]
 
@@ -242,6 +303,8 @@ export const useTenantsStore = defineStore('tenants', () => {
       const t = tenants.value.find((t) => t.id === id)
       if (t) {
         t.subscription_status = 'suspended'
+        if (!t.subscription_history) t.subscription_history = []
+        t.subscription_history.unshift(makeEvent('suspended', 'Manually suspended by SuperAdmin'))
       }
     } finally {
       loading.value = false
@@ -255,13 +318,75 @@ export const useTenantsStore = defineStore('tenants', () => {
       const t = tenants.value.find((t) => t.id === id)
       if (t) {
         t.subscription_status = 'active'
-        if (t.subscription_plan === 'trial') {
-          t.subscription_plan = 'basic'
-        }
+        if (t.subscription_plan === 'trial') t.subscription_plan = 'basic'
+        if (!t.subscription_history) t.subscription_history = []
+        t.subscription_history.unshift(makeEvent('activated', 'Reactivated by SuperAdmin'))
       }
     } finally {
       loading.value = false
     }
+  }
+
+  // ── New subscription control actions ────────────────────────
+
+  function activateTrial(id: string, days: number = TRIAL_DAYS_DEFAULT) {
+    const t = tenants.value.find((t) => t.id === id)
+    if (!t) return
+    t.subscription_status = 'trial'
+    t.subscription_plan = 'trial'
+    t.trial_ends_at = addDays(undefined, days)
+    if (!t.subscription_history) t.subscription_history = []
+    t.subscription_history.unshift(makeEvent('trial_started', `${days}-day trial activated`, { days_added: days }))
+  }
+
+  function extendTrial(id: string, days: number) {
+    const t = tenants.value.find((t) => t.id === id)
+    if (!t) return
+    t.trial_ends_at = addDays(t.trial_ends_at, days)
+    if (t.subscription_status === 'expired') t.subscription_status = 'trial'
+    if (!t.subscription_history) t.subscription_history = []
+    t.subscription_history.unshift(makeEvent('trial_extended', `Trial extended by ${days} days`, { days_added: days }))
+  }
+
+  function upgradePlan(id: string, plan: TenantSummary['subscription_plan'], months: number) {
+    const t = tenants.value.find((t) => t.id === id)
+    if (!t) return
+    t.subscription_plan = plan
+    t.subscription_status = 'active'
+    t.subscription_end = addMonths(months)
+    if (!t.subscription_history) t.subscription_history = []
+    t.subscription_history.unshift(makeEvent('plan_upgraded', `Plan set to ${plan} for ${months} months`, { plan }))
+  }
+
+  function renewSubscription(id: string, months: number) {
+    const t = tenants.value.find((t) => t.id === id)
+    if (!t) return
+    // Extend from existing end date or from today
+    const base = t.subscription_end && new Date(t.subscription_end) > new Date() ? t.subscription_end : undefined
+    const newEnd = base ? (() => { const d = new Date(base); d.setMonth(d.getMonth() + months); return d.toISOString().split('T')[0] })() : addMonths(months)
+    t.subscription_end = newEnd
+    t.subscription_status = 'active'
+    if (!t.subscription_history) t.subscription_history = []
+    t.subscription_history.unshift(makeEvent('subscription_renewed', `Renewed for ${months} months`))
+  }
+
+  function expireTenant(id: string) {
+    const t = tenants.value.find((t) => t.id === id)
+    if (!t) return
+    t.subscription_status = 'expired'
+    if (!t.subscription_history) t.subscription_history = []
+    t.subscription_history.unshift(makeEvent('expired', 'Manually marked as expired by SuperAdmin'))
+  }
+
+  function getDaysRemaining(t: TenantSummary): number {
+    const endDate = t.subscription_status === 'trial' ? t.trial_ends_at : t.subscription_end
+    if (!endDate) return 0
+    const diff = new Date(endDate).getTime() - Date.now()
+    return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)))
+  }
+
+  function getMonthlyBill(t: TenantSummary) {
+    return calcMonthlyBill(t.total_students)
   }
 
   function getTenantBySlug(slug: string): TenantSummary | undefined {
@@ -313,6 +438,13 @@ export const useTenantsStore = defineStore('tenants', () => {
     onboardInstitution,
     suspendTenant,
     activateTenant,
+    activateTrial,
+    extendTrial,
+    upgradePlan,
+    renewSubscription,
+    expireTenant,
+    getDaysRemaining,
+    getMonthlyBill,
     setTenantsFromApi,
     getTenantBySlug,
     getInstitutionProfile,

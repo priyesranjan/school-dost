@@ -136,7 +136,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, computed, watch } from 'vue'
+import { reactive, computed, onMounted, watch } from 'vue'
 import { useSmsStore } from '@/stores/sms'
 import { useFeeStore } from '@/stores/fees'
 import { useStudentStore } from '@/stores/students'
@@ -190,6 +190,10 @@ watch(
     })
   },
 )
+
+onMounted(() => {
+  void smsStore.fetchLogs()
+})
 
 function handleSend() {
   if (compose.targetScope === 'due') {
@@ -274,6 +278,8 @@ function typeColor(type: string) {
     general: 'gray',
     notice: 'blue',
     schedule: 'yellow',
+    campaign: 'blue',
+    otp: 'gray',
   }
   return map[type] || 'gray'
 }
@@ -286,6 +292,8 @@ function typeLabel(type: string) {
     general: 'General',
     notice: 'Notice',
     schedule: 'Schedule',
+    campaign: 'Campaign',
+    otp: 'OTP',
   }
   return map[type] || type
 }

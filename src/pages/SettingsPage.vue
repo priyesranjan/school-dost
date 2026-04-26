@@ -3,7 +3,7 @@
     <!-- Tabs -->
     <div class="flex gap-1 rounded-lg bg-gray-100 dark:bg-gray-700 p-1">
       <button
-        v-for="tab in tabs"
+        v-for="tab in visibleTabs"
         :key="tab.key"
         @click="activeTab = tab.key"
         :class="[
@@ -454,6 +454,129 @@
       </AppCard>
     </template>
 
+    <template v-if="activeTab === 'security'">
+      <div class="space-y-6">
+        <AppCard title="Security Policy">
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <AppInput v-model="securityForm.password_min_length" type="number" label="Minimum Password Length" />
+            <AppInput v-model="securityForm.session_timeout_hours" type="number" label="Session Timeout (hours)" />
+          </div>
+          <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <label class="flex items-center justify-between rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+              <span class="text-sm font-medium text-gray-900 dark:text-white">Require Uppercase</span>
+              <input v-model="securityForm.require_uppercase" type="checkbox" class="h-4 w-4" />
+            </label>
+            <label class="flex items-center justify-between rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+              <span class="text-sm font-medium text-gray-900 dark:text-white">Require Lowercase</span>
+              <input v-model="securityForm.require_lowercase" type="checkbox" class="h-4 w-4" />
+            </label>
+            <label class="flex items-center justify-between rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+              <span class="text-sm font-medium text-gray-900 dark:text-white">Require Number</span>
+              <input v-model="securityForm.require_number" type="checkbox" class="h-4 w-4" />
+            </label>
+            <label class="flex items-center justify-between rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+              <span class="text-sm font-medium text-gray-900 dark:text-white">Require Special Character</span>
+              <input v-model="securityForm.require_special_char" type="checkbox" class="h-4 w-4" />
+            </label>
+            <label class="flex items-center justify-between rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+              <span class="text-sm font-medium text-gray-900 dark:text-white">Allow Concurrent Sessions</span>
+              <input v-model="securityForm.allow_concurrent_sessions" type="checkbox" class="h-4 w-4" />
+            </label>
+            <label class="flex items-center justify-between rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+              <span class="text-sm font-medium text-gray-900 dark:text-white">Require OTP for Admins</span>
+              <input v-model="securityForm.two_factor_required_admins" type="checkbox" class="h-4 w-4" />
+            </label>
+          </div>
+          <div class="mt-4 rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+            <label class="flex items-center justify-between">
+              <span class="text-sm font-medium text-gray-900 dark:text-white">Enable IP Allowlist</span>
+              <input v-model="securityForm.enforce_ip_allowlist" type="checkbox" class="h-4 w-4" />
+            </label>
+            <AppInput
+              v-model="securityForm.ip_allowlist_text"
+              class="mt-4"
+              type="textarea"
+              label="Allowed IP Addresses"
+              :rows="4"
+              placeholder="One IP address per line"
+            />
+          </div>
+          <div class="mt-4 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+            <span>Updated by {{ securityStore.policy?.updated_by_name || 'System' }}</span>
+            <span>{{ securityStore.policy?.updated_at ? new Date(securityStore.policy.updated_at).toLocaleString() : 'Not yet saved' }}</span>
+          </div>
+          <div class="mt-4 flex justify-end">
+            <AppButton :loading="securityStore.loading" @click="saveSecurityPolicy">Save Security Policy</AppButton>
+          </div>
+        </AppCard>
+
+        <AppCard :no-padding="true">
+          <div class="flex items-center justify-between p-4">
+            <div>
+              <p class="text-sm font-semibold text-gray-900 dark:text-white">Active Sessions</p>
+              <p class="text-xs text-gray-500 dark:text-gray-400">{{ securityStore.sessions.length }} tracked sessions</p>
+            </div>
+            <div class="flex items-center gap-3">
+              <AppInput v-model="sessionRoleFilter" type="select" label="Role">
+                <option value="">All Roles</option>
+                <option value="admin">Admin</option>
+                <option value="accountant">Accountant</option>
+                <option value="teacher">Teacher</option>
+                <option value="receptionist">Receptionist</option>
+                <option value="hod">HOD</option>
+                <option value="student">Student</option>
+                <option value="parent">Parent</option>
+              </AppInput>
+              <AppButton size="sm" variant="secondary" :loading="securityStore.loading" @click="loadSecuritySessions">Refresh</AppButton>
+            </div>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm">
+              <thead>
+                <tr class="border-y border-gray-100 bg-gray-50/50 dark:border-gray-700 dark:bg-gray-800/50">
+                  <th class="px-6 py-3 font-medium text-gray-500 dark:text-gray-400">User</th>
+                  <th class="px-6 py-3 font-medium text-gray-500 dark:text-gray-400">Network</th>
+                  <th class="px-6 py-3 font-medium text-gray-500 dark:text-gray-400">Timeline</th>
+                  <th class="px-6 py-3 font-medium text-gray-500 dark:text-gray-400">Status</th>
+                  <th class="px-6 py-3 font-medium text-gray-500 dark:text-gray-400">Action</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-50 dark:divide-gray-700">
+                <tr v-for="session in securityStore.sessions" :key="session.id">
+                  <td class="px-6 py-3">
+                    <p class="font-medium text-gray-900 dark:text-white">{{ session.name }}</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">{{ session.email }} · {{ session.role }}</p>
+                  </td>
+                  <td class="px-6 py-3">
+                    <p class="text-gray-700 dark:text-gray-200">{{ session.ip_address || 'Unknown IP' }}</p>
+                    <p class="line-clamp-1 text-xs text-gray-500 dark:text-gray-400">{{ session.user_agent || 'Unknown device' }}</p>
+                  </td>
+                  <td class="px-6 py-3 text-xs text-gray-500 dark:text-gray-400">
+                    <p>Created: {{ new Date(session.created_at).toLocaleString() }}</p>
+                    <p>Last seen: {{ session.last_seen_at ? new Date(session.last_seen_at).toLocaleString() : 'Never' }}</p>
+                  </td>
+                  <td class="px-6 py-3">
+                    <StatusBadge :color="session.is_active ? 'green' : 'red'">{{ session.is_active ? 'active' : 'revoked' }}</StatusBadge>
+                  </td>
+                  <td class="px-6 py-3">
+                    <AppButton
+                      size="sm"
+                      variant="secondary"
+                      :disabled="!session.is_active"
+                      :loading="securityStore.loading"
+                      @click="revokeSecuritySession(session.id)"
+                    >
+                      Revoke
+                    </AppButton>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </AppCard>
+      </div>
+    </template>
+
     <!-- Users & Roles -->
     <template v-if="activeTab === 'users'">
       <AppCard :no-padding="true">
@@ -615,6 +738,7 @@ import { ref, reactive, onMounted, onUnmounted, computed } from 'vue'
 import type { UserRole } from '@/types'
 import { useAuthStore } from '@/stores/auth'
 import { useSettingsStore } from '@/stores/settings'
+import { useSecurityStore } from '@/stores/security'
 import { useToastStore } from '@/stores/toast'
 import { useAuditStore } from '@/stores/audit'
 import { evaluateIntegrationReadiness } from '@/services/integrationReadinessService'
@@ -643,6 +767,7 @@ import { generateEnrollmentNo, formatEnrollmentNo } from '@/utils/enrollmentNumb
 
 const authStore = useAuthStore()
 const settingsStore = useSettingsStore()
+const securityStore = useSecurityStore()
 const toast = useToastStore()
 
 const isSavingSettings = ref(false)
@@ -680,9 +805,11 @@ const tabs = [
   { key: 'school', label: 'School Info' },
   { key: 'branding', label: 'Executive Branding' },
   { key: 'sms', label: 'SMS Settings' },
+  { key: 'security', label: 'Security' },
   { key: 'users', label: 'Users & Roles' },
   { key: 'data', label: 'Data Ops' },
 ]
+const visibleTabs = computed(() => tabs.filter((tab) => tab.key !== 'security' || authStore.user?.role === 'admin'))
 
 const brandPresets = [
   { name: 'Indigo (Default)', color: '#4f46e5' },
@@ -701,6 +828,10 @@ onMounted(() => {
   Object.assign(schoolForm, settingsStore.settings)
   schoolSnapshot = JSON.stringify({ ...schoolForm })
   refreshCircuits()
+  if (authStore.user?.role === 'admin') {
+    void loadSecurityPolicy()
+    void loadSecuritySessions()
+  }
   circuitTicker = window.setInterval(() => {
     nowTs.value = Date.now()
     refreshCircuits()
@@ -822,6 +953,68 @@ const smsForm = reactive({
   audit_signature_endpoint: settingsStore.settings.audit_signature_endpoint,
 })
 smsSnapshot = JSON.stringify({ ...smsForm })
+
+const securityForm = reactive({
+  password_min_length: 8,
+  require_uppercase: false,
+  require_lowercase: true,
+  require_number: false,
+  require_special_char: false,
+  session_timeout_hours: 168,
+  allow_concurrent_sessions: true,
+  enforce_ip_allowlist: false,
+  ip_allowlist_text: '',
+  two_factor_required_admins: false,
+})
+const sessionRoleFilter = ref('')
+
+async function loadSecurityPolicy() {
+  const policy = await securityStore.loadPolicy()
+  if (!policy) return
+  Object.assign(securityForm, {
+    password_min_length: policy.password_min_length,
+    require_uppercase: policy.require_uppercase,
+    require_lowercase: policy.require_lowercase,
+    require_number: policy.require_number,
+    require_special_char: policy.require_special_char,
+    session_timeout_hours: policy.session_timeout_hours,
+    allow_concurrent_sessions: policy.allow_concurrent_sessions,
+    enforce_ip_allowlist: policy.enforce_ip_allowlist,
+    ip_allowlist_text: policy.ip_allowlist.join('\n'),
+    two_factor_required_admins: policy.two_factor_required_admins,
+  })
+}
+
+async function saveSecurityPolicy() {
+  await securityStore.savePolicy({
+    password_min_length: Number(securityForm.password_min_length) || 8,
+    require_uppercase: securityForm.require_uppercase,
+    require_lowercase: securityForm.require_lowercase,
+    require_number: securityForm.require_number,
+    require_special_char: securityForm.require_special_char,
+    session_timeout_hours: Number(securityForm.session_timeout_hours) || 168,
+    allow_concurrent_sessions: securityForm.allow_concurrent_sessions,
+    enforce_ip_allowlist: securityForm.enforce_ip_allowlist,
+    ip_allowlist: securityForm.ip_allowlist_text
+      .split('\n')
+      .map((item) => item.trim())
+      .filter(Boolean),
+    two_factor_required_admins: securityForm.two_factor_required_admins,
+  })
+  await loadSecurityPolicy()
+}
+
+async function loadSecuritySessions() {
+  await securityStore.loadSessions({
+    active_only: false,
+    role: sessionRoleFilter.value || undefined,
+  })
+}
+
+async function revokeSecuritySession(id: number) {
+  await securityStore.revokeSession(id)
+  await loadSecuritySessions()
+}
 
 function saveSmsSettings() {
   settingsStore.updateSettings({ ...smsForm })

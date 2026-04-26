@@ -108,6 +108,71 @@ export interface Student {
   signature_url?: string
 }
 
+export interface StudentImportIssue {
+  row: number
+  code: string
+  message: string
+  student_name: string | null
+  roll_number: string | null
+}
+
+export interface StudentImportReport {
+  summary: {
+    total_rows: number
+    created: number
+    skipped: number
+    failed: number
+  }
+  students: Student[]
+  issues: StudentImportIssue[]
+}
+
+export interface AssignmentSubmissionRecord {
+  id: number
+  assignment_id: number
+  user_id: number
+  user_name: string
+  user_role: string
+  status: 'submitted' | 'reviewed' | 'returned'
+  submission_text: string | null
+  attachment_url: string | null
+  feedback: string | null
+  score: number | null
+  submitted_at: string
+  updated_at: string
+}
+
+export interface AssignmentRecord {
+  id: number
+  title: string
+  description: string | null
+  subject: string
+  class_name: string
+  due_date: string
+  resource_url: string | null
+  status: 'active' | 'completed' | 'overdue' | 'archived'
+  teacher_name: string | null
+  created_at: string
+  updated_at: string
+  submission_count: number
+  my_submission: AssignmentSubmissionRecord | null
+}
+
+export interface ClassroomResourceRecord {
+  id: number
+  title: string
+  description: string | null
+  class_name: string
+  subject: string
+  resource_type: 'document' | 'worksheet' | 'video' | 'link'
+  url: string
+  assignment_id: number | null
+  assignment_title: string | null
+  published_by_name: string | null
+  created_at: string
+  updated_at: string
+}
+
 export interface AuthUser {
   name: string
   role: 'superadmin' | 'admin' | 'accountant' | 'teacher' | 'receptionist' | 'student' | 'parent' | 'hod'
@@ -115,6 +180,7 @@ export interface AuthUser {
   phone: string
   profile_photo_url?: string
   tenant_id?: string
+  tenant_slug?: string
 }
 
 export interface OtpChallenge {
@@ -175,6 +241,99 @@ export interface DashboardStats {
   fee_alerts: FeePayment[]
 }
 
+export interface AnalyticsKpis {
+  students_active: number
+  fees_collected: number
+  fees_pending: number
+  fee_recovery_rate: number
+  attendance_rate: number
+  exam_average_score: number
+}
+
+export interface AnalyticsFeesByMonth {
+  month: string
+  collected: number
+  due: number
+  transactions: number
+}
+
+export interface AnalyticsAttendanceByDay {
+  date: string
+  present: number
+  absent: number
+  late: number
+  attendance_rate: number
+}
+
+export interface AnalyticsExamSubjectPerformance {
+  subject: string
+  avg_percentage: number
+  exams_count: number
+  attempts: number
+}
+
+export interface AnalyticsClassMetric {
+  class_name: string
+  students: number
+  collected: number
+  outstanding: number
+  fee_recovery_rate: number
+  attendance_rate: number
+  exam_average_score: number
+}
+
+export interface AnalyticsRiskStudent {
+  student_id: number
+  student_name: string
+  class_name: string
+  fee_due_amount: number
+  absent_days: number
+  last_payment_date: string | null
+  exam_average_score: number | null
+  risk_score: number
+  risk_level: 'low' | 'medium' | 'high'
+}
+
+export interface EnterpriseAnalyticsOverview {
+  period_days: number
+  generated_at: string
+  kpis: AnalyticsKpis
+  trends: {
+    fees_by_month: AnalyticsFeesByMonth[]
+    attendance_by_day: AnalyticsAttendanceByDay[]
+    exam_performance_by_subject: AnalyticsExamSubjectPerformance[]
+  }
+  class_analytics: AnalyticsClassMetric[]
+  risk_students: AnalyticsRiskStudent[]
+}
+
+export interface OpsAlertItem {
+  id: number
+  type: 'system'
+  title: string
+  message: string
+  read: boolean
+  timestamp: string
+  severity: 'critical' | 'warning' | 'info'
+  source_key: string | null
+  muted_until: string | null
+  acknowledged_at: string | null
+}
+
+export interface OpsAlertsSnapshot {
+  generated_at: string
+  period_days: number
+  alerts: OpsAlertItem[]
+  stats: {
+    total: number
+    critical: number
+    warning: number
+    info: number
+    top_source: string
+    top_source_count: number
+  }
+}
+
 export interface ApiResponse<T> {
   data: T
   message?: string
@@ -203,7 +362,7 @@ export interface SmsLog {
   phone: string
   student_name: string
   message: string
-  type: 'payment' | 'due_reminder' | 'attendance' | 'general' | 'notice' | 'schedule'
+  type: 'payment' | 'due_reminder' | 'attendance' | 'general' | 'notice' | 'schedule' | 'campaign' | 'otp'
   status: 'sent' | 'failed' | 'pending'
   sent_at: string
   channel?: 'sms' | 'whatsapp'
@@ -300,6 +459,39 @@ export interface SchoolSettings {
   sla_policy_updated_at: string
 }
 
+export interface SecurityPolicyRecord {
+  id: number
+  password_min_length: number
+  require_uppercase: boolean
+  require_lowercase: boolean
+  require_number: boolean
+  require_special_char: boolean
+  session_timeout_hours: number
+  allow_concurrent_sessions: boolean
+  enforce_ip_allowlist: boolean
+  ip_allowlist: string[]
+  two_factor_required_admins: boolean
+  updated_by_name: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface SecuritySessionRecord {
+  id: number
+  session_id: string | null
+  user_sub: string
+  name: string
+  role: string
+  email: string
+  ip_address: string | null
+  user_agent: string | null
+  last_seen_at: string | null
+  created_at: string
+  expires_at: string
+  revoked_at: string | null
+  is_active: boolean
+}
+
 export interface UserRole {
   id: number
   name: string
@@ -307,6 +499,116 @@ export interface UserRole {
   role: 'admin' | 'accountant' | 'teacher' | 'receptionist' | 'student' | 'parent' | 'hod'
   status: 'active' | 'inactive'
   last_login: string | null
+}
+
+export interface PayrollProfileRecord {
+  id: number | null
+  staff_id: number
+  staff_name: string
+  role: string
+  department: string
+  staff_status: 'active' | 'inactive' | 'on_leave'
+  base_salary: number
+  allowances: number
+  deductions: number
+  net_salary: number
+  payment_method: string | null
+  bank_name: string | null
+  bank_account_no: string | null
+  ifsc_code: string | null
+  pan_number: string | null
+  notes: string | null
+  updated_at: string | null
+}
+
+export interface PayrollRecord {
+  id: number
+  staff_id: number
+  staff_name: string
+  role: string
+  department: string
+  staff_status: 'active' | 'inactive' | 'on_leave'
+  month: string
+  base_salary: number
+  allowances: number
+  deductions: number
+  gross_pay: number
+  net_pay: number
+  status: 'pending' | 'paid'
+  payment_reference: string | null
+  paid_at: string | null
+  generated_at: string
+  updated_at: string
+  notes: string | null
+}
+
+export interface PayrollSummary {
+  month: string
+  total_staff: number
+  configured_profiles: number
+  generated_records: number
+  pending_records: number
+  paid_records: number
+  gross_total: number
+  net_total: number
+}
+
+export interface PayrollGenerationReport {
+  month: string
+  total_staff: number
+  created: number
+  updated: number
+  skipped_no_profile: number
+  locked_paid: number
+  items: PayrollRecord[]
+}
+
+export interface HrSummary {
+  pending_leave_requests: number
+  approved_leave_requests: number
+  staff_currently_on_leave: number
+  published_appraisals: number
+  draft_appraisals: number
+}
+
+export interface LeaveRequestRecord {
+  id: number
+  staff_id: number
+  staff_name: string | null
+  staff_role: string | null
+  department: string | null
+  leave_type: string
+  start_date: string
+  end_date: string
+  duration_days: number
+  reason: string | null
+  decision_note: string | null
+  status: 'pending' | 'approved' | 'rejected' | 'cancelled' | 'completed'
+  requested_by_name: string | null
+  approved_by_name: string | null
+  requested_at: string
+  decided_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface StaffAppraisalRecord {
+  id: number
+  staff_id: number
+  staff_name: string | null
+  staff_role: string | null
+  department: string | null
+  reviewer_name: string | null
+  review_period: string
+  review_date: string
+  overall_rating: number
+  strengths: string | null
+  improvement_areas: string | null
+  goals: string | null
+  status: 'draft' | 'published'
+  published_at: string | null
+  created_at: string
+  updated_at: string
 }
 
 export interface Exam {
@@ -456,6 +758,20 @@ export interface TenantSummary {
   total_staff: number
   onboarded_at: string
   logo_url: string
+  // Subscription lifecycle
+  trial_ends_at?: string
+  subscription_end?: string
+  subscription_history?: SubscriptionEvent[]
+}
+
+export interface SubscriptionEvent {
+  id: string
+  action: 'trial_started' | 'trial_extended' | 'plan_upgraded' | 'subscription_renewed' | 'suspended' | 'activated' | 'expired'
+  performed_by: string
+  performed_at: string
+  note?: string
+  days_added?: number
+  plan?: string
 }
 
 export interface AdmissionInquiry {
@@ -470,3 +786,33 @@ export interface AdmissionInquiry {
   status: 'new' | 'contacted' | 'enrolled' | 'rejected'
   submitted_at: string
 }
+
+// ================================================================
+// Subscription Pricing — Per student / month (tiered)
+// ================================================================
+export interface SubscriptionPricingTier {
+  label: string
+  minStudents: number
+  maxStudents: number | null  // null = unlimited
+  ratePerStudent: number | null  // null = Contact Us
+  description: string
+}
+
+export const SUBSCRIPTION_PRICING: SubscriptionPricingTier[] = [
+  { label: 'Starter',    minStudents: 0,    maxStudents: 500,  ratePerStudent: 15, description: '0–500 students @ ₹15/student/month' },
+  { label: 'Growth',     minStudents: 501,  maxStudents: 1000, ratePerStudent: 12, description: '501–1000 students @ ₹12/student/month' },
+  { label: 'Scale',      minStudents: 1001, maxStudents: 2000, ratePerStudent: 10, description: '1001–2000 students @ ₹10/student/month' },
+  { label: 'Enterprise', minStudents: 2001, maxStudents: null, ratePerStudent: null, description: '2000+ students — Contact Us' },
+]
+
+export function calcMonthlyBill(students: number): { amount: number | null; tier: SubscriptionPricingTier } {
+  const tier = SUBSCRIPTION_PRICING.find(
+    (t) => students >= t.minStudents && (t.maxStudents === null || students <= t.maxStudents)
+  ) ?? SUBSCRIPTION_PRICING[SUBSCRIPTION_PRICING.length - 1]
+  return {
+    amount: tier.ratePerStudent !== null ? students * tier.ratePerStudent : null,
+    tier,
+  }
+}
+
+export const TRIAL_DAYS_DEFAULT = 15

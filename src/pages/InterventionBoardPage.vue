@@ -26,6 +26,29 @@
       </div>
     </div>
 
+    <div class="rounded-2xl border border-indigo-100 bg-indigo-50/60 p-4 dark:border-indigo-900/40 dark:bg-indigo-900/10">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p class="text-xs font-black uppercase tracking-widest text-indigo-700 dark:text-indigo-300">Risk Engine Mode</p>
+          <p class="mt-1 text-sm font-medium text-indigo-900 dark:text-indigo-100">
+            {{ apiRisks.length ? 'Live backend risk model' : 'Local fallback risk model' }}
+          </p>
+          <p class="text-xs text-indigo-700/80 dark:text-indigo-300/80">
+            Window: last {{ liveRiskWindowDays }} days
+            <span v-if="liveRiskUpdatedAtLabel"> · Updated {{ liveRiskUpdatedAtLabel }}</span>
+          </p>
+        </div>
+        <button
+          class="rounded-xl border border-indigo-200 bg-white px-3 py-1.5 text-xs font-bold text-indigo-700 hover:bg-indigo-50 dark:border-indigo-700 dark:bg-indigo-900/20 dark:text-indigo-300"
+          :disabled="liveRiskLoading"
+          @click="refreshLiveRisk"
+        >
+          {{ liveRiskLoading ? 'Refreshing...' : 'Refresh' }}
+        </button>
+      </div>
+      <p v-if="liveRiskError" class="mt-2 text-xs font-medium text-amber-700 dark:text-amber-300">{{ liveRiskError }}</p>
+    </div>
+
     <!-- Summary Stats -->
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
       <div class="rounded-2xl bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800/30 p-4">
@@ -135,7 +158,7 @@
         <!-- Action Row -->
         <div class="mt-4 flex items-center gap-2">
           <select
-            v-model="risk.assignedAction"
+            v-model="assignedActionMap[risk.studentId]"
             class="flex-1 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-2 py-2 text-xs font-medium focus:outline-none focus:border-primary-500"
           >
             <option value="">Assign Action...</option>
@@ -147,7 +170,7 @@
           </select>
           <button
             @click="markActioned(risk.studentId)"
-            :disabled="!risk.assignedAction"
+            :disabled="!assignedActionMap[risk.studentId]"
             :class="[
               'rounded-xl px-3 py-2 text-xs font-black transition-colors disabled:opacity-40 disabled:cursor-not-allowed',
               actionedIds.has(risk.studentId)
@@ -167,11 +190,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useStudentStore } from '@/stores/students'
 import { useFeeStore } from '@/stores/fees'
 import { useAttendanceStore } from '@/stores/attendance'
 import { useExamStore } from '@/stores/exams'
+import { analyticsService } from '@/services/analyticsService'
+import type { EnterpriseAnalyticsOverview } from '@/types'
 import QuickViewDrawer from '@/components/ui/QuickViewDrawer.vue'
 
 const studentStore = useStudentStore()
@@ -182,8 +207,14 @@ const examStore = useExamStore()
 const riskFilter = ref('')
 const classFilter = ref('')
 const actionedIds = ref(new Set<number>())
+const assignedActionMap = ref<Record<number, string>>({})
 const drawerOpen = ref(false)
 const drawerStudentId = ref(0)
+const riskSnapshot = ref<EnterpriseAnalyticsOverview | null>(null)
+const liveRiskLoading = ref(false)
+const liveRiskError = ref<string | null>(null)
+const liveRiskUpdatedAt = ref<string | null>(null)
+const liveRiskWindowDays = ref(30)
 
 const classes = computed(() => [...new Set(studentStore.students.map((s) => s.class_name))].sort())
 
@@ -202,10 +233,9 @@ interface RiskEntry {
   score: number
   level: 'critical' | 'high' | 'medium'
   factors: RiskFactor[]
-  assignedAction: string
 }
 
-const allRisks = computed((): RiskEntry[] => {
+const localRisks = computed((): RiskEntry[] => {
   const risks: RiskEntry[] = []
 
   for (const student of studentStore.students) {
@@ -302,12 +332,88 @@ const allRisks = computed((): RiskEntry[] => {
       score: Math.min(score, 100),
       level,
       factors,
-      assignedAction: '',
     })
   }
 
   return risks.sort((a, b) => b.score - a.score)
 })
+
+const liveRiskUpdatedAtLabel = computed(() => {
+  if (!liveRiskUpdatedAt.value) return ''
+  return new Date(liveRiskUpdatedAt.value).toLocaleString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+})
+
+function mapRiskLevel(score: number): RiskEntry['level'] {
+  if (score >= 85) return 'critical'
+  if (score >= 60) return 'high'
+  return 'medium'
+}
+
+const apiRisks = computed((): RiskEntry[] => {
+  const rows = riskSnapshot.value?.risk_students || []
+  return rows
+    .map((row) => {
+      const factors: RiskFactor[] = []
+
+      if (row.fee_due_amount > 0) {
+        factors.push({
+          key: 'fee',
+          icon: '💰',
+          text: `Fee pending: ₹${Math.round(row.fee_due_amount).toLocaleString('en-IN')}`,
+          badge: `₹${Math.round(row.fee_due_amount).toLocaleString('en-IN')}`,
+          severity: row.fee_due_amount > 12000 ? 'high' : 'medium',
+        })
+      }
+
+      if (row.absent_days > 0) {
+        factors.push({
+          key: 'att',
+          icon: '📋',
+          text: `Absences in window: ${row.absent_days} day(s)`,
+          badge: `${row.absent_days}d`,
+          severity: row.absent_days >= 5 ? 'high' : 'medium',
+        })
+      }
+
+      if (row.exam_average_score !== null) {
+        factors.push({
+          key: 'exam',
+          icon: '📝',
+          text: `Exam average: ${Math.round(row.exam_average_score)}%`,
+          badge: `${Math.round(row.exam_average_score)}%`,
+          severity: row.exam_average_score < 45 ? 'high' : 'medium',
+        })
+      }
+
+      if (factors.length === 0) {
+        factors.push({
+          key: 'risk',
+          icon: '⚠️',
+          text: `Risk model score: ${row.risk_score}/100`,
+          badge: `${row.risk_score}`,
+          severity: row.risk_score >= 75 ? 'high' : 'medium',
+        })
+      }
+
+      return {
+        studentId: row.student_id,
+        name: row.student_name,
+        class_name: row.class_name,
+        roll: '-',
+        score: row.risk_score,
+        level: mapRiskLevel(row.risk_score),
+        factors,
+      }
+    })
+    .sort((a, b) => b.score - a.score)
+})
+
+const allRisks = computed(() => (apiRisks.value.length ? apiRisks.value : localRisks.value))
 
 const filteredRisks = computed(() => {
   return allRisks.value.filter((r) => {
@@ -322,8 +428,34 @@ const highCount = computed(() => allRisks.value.filter((r) => r.level === 'high'
 const mediumCount = computed(() => allRisks.value.filter((r) => r.level === 'medium').length)
 const resolvedCount = ref(0)
 
+async function loadLiveRisk() {
+  liveRiskLoading.value = true
+  liveRiskError.value = null
+  try {
+    const response = await analyticsService.getOverview(30)
+    riskSnapshot.value = response.data
+    liveRiskUpdatedAt.value = response.data.generated_at
+    liveRiskWindowDays.value = response.data.period_days
+  } catch {
+    riskSnapshot.value = null
+    liveRiskUpdatedAt.value = null
+    liveRiskError.value = 'Unable to load backend risk analytics. Showing local model.'
+  } finally {
+    liveRiskLoading.value = false
+  }
+}
+
+async function refreshLiveRisk() {
+  await loadLiveRisk()
+}
+
 function markActioned(id: number) {
+  if (actionedIds.value.has(id)) return
   actionedIds.value.add(id)
   resolvedCount.value++
 }
+
+onMounted(() => {
+  void loadLiveRisk()
+})
 </script>

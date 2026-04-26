@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
-import type { Student, PaginationParams } from '@/types'
+import type { Student, StudentImportReport, PaginationParams } from '@/types'
 import { studentService } from '@/services/studentService'
 import { useToastStore } from './toast'
 import { saveToStorage, loadFromStorage } from '@/utils/storage'
@@ -518,6 +518,30 @@ const demoStudents: Student[] = [
 
 const USE_DEMO = false
 
+function extractStudentListPayload(payload: unknown) {
+  if (Array.isArray(payload)) {
+    return {
+      items: payload as Student[],
+      total: payload.length,
+    }
+  }
+
+  if (payload && typeof payload === 'object') {
+    const candidate = payload as { items?: unknown; total?: unknown }
+    if (Array.isArray(candidate.items)) {
+      return {
+        items: candidate.items as Student[],
+        total: typeof candidate.total === 'number' ? candidate.total : candidate.items.length,
+      }
+    }
+  }
+
+  return {
+    items: [] as Student[],
+    total: 0,
+  }
+}
+
 export const useStudentStore = defineStore('students', () => {
   const toast = useToastStore()
   const saved = loadFromStorage<Student[]>('students')
@@ -582,6 +606,23 @@ export const useStudentStore = defineStore('students', () => {
     return Array.from(set).sort()
   })
 
+  function mergeStudents(incoming: Student[]) {
+    const merged = new Map<number, Student>()
+
+    for (const student of incoming) {
+      merged.set(student.id, student)
+    }
+
+    for (const student of students.value) {
+      if (!merged.has(student.id)) {
+        merged.set(student.id, student)
+      }
+    }
+
+    students.value = Array.from(merged.values())
+    total.value = Math.max(total.value, students.value.length)
+  }
+
 
   async function fetchStudents(params?: PaginationParams) {
     if (USE_DEMO) return
@@ -590,10 +631,9 @@ export const useStudentStore = defineStore('students', () => {
       const res = await studentService.getAll(
         params || { page: currentPage.value, per_page: perPage.value, search: searchQuery.value },
       )
-      // API returns { data: Student[] } — guard against unexpected shapes
-      const rows = Array.isArray(res.data) ? res.data : []
-      students.value = rows
-      total.value = (res as any).total || rows.length
+      const { items, total: totalRows } = extractStudentListPayload(res.data)
+      students.value = items
+      total.value = totalRows
     } catch {
       toast.error('Failed to load students')
     } finally {
@@ -625,6 +665,32 @@ export const useStudentStore = defineStore('students', () => {
     } catch {
       toast.error('Failed to add student')
       throw new Error('Failed to add student')
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function importStudentsCsv(csvText: string, skipDuplicates = true) {
+    if (USE_DEMO) {
+      toast.info('Bulk student import is available in API mode.')
+      return {
+        summary: { total_rows: 0, created: 0, skipped: 0, failed: 0 },
+        students: [],
+        issues: [],
+      } satisfies StudentImportReport
+    }
+
+    loading.value = true
+    try {
+      const res = await studentService.importCsv({ csv_text: csvText, skip_duplicates: skipDuplicates })
+      mergeStudents(res.data.students)
+      toast.success(
+        `Import complete: ${res.data.summary.created} created, ${res.data.summary.skipped} skipped, ${res.data.summary.failed} failed.`,
+      )
+      return res.data
+    } catch {
+      toast.error('Failed to import students')
+      throw new Error('Failed to import students')
     } finally {
       loading.value = false
     }
@@ -699,6 +765,7 @@ export const useStudentStore = defineStore('students', () => {
     fetchStudents,
     fetchStudentById,
     addStudent,
+    importStudentsCsv,
     updateStudent,
     deleteStudent,
   }

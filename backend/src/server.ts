@@ -21,7 +21,17 @@ import timetableRoutes from './routes/timetable.routes'
 import auditRoutes from './routes/audit.routes'
 import storageRoutes from './routes/storage.routes'
 import examsRoutes from './routes/exams.routes'
+import assignmentsRoutes from './routes/assignments.routes'
 import calendarRoutes from './routes/calendar.routes'
+import analyticsRoutes from './routes/analytics.routes'
+import opsAlertsRoutes from './routes/opsAlerts.routes'
+import smsRoutes from './routes/sms.routes'
+import accountingRoutes from './routes/accounting.routes'
+import payrollRoutes from './routes/payroll.routes'
+import hrRoutes from './routes/hr.routes'
+import inventoryRoutes from './routes/inventory.routes'
+import webhooksRoutes from './routes/webhooks.routes'
+import securityRoutes from './routes/security.routes'
 import superadminRoutes from './routes/superadmin.routes'
 import superadminTeamRoutes from './routes/superadminTeam.routes'
 import { resolveTenant, requireSchoolContext, requireAnyContext } from './middleware/tenantResolver'
@@ -113,7 +123,17 @@ app.use('/api/timetable', requireSchoolContext, timetableRoutes)
 app.use('/api/audit', requireSchoolContext, auditRoutes)
 app.use('/api/storage', requireSchoolContext, storageRoutes)
 app.use('/api/exams', requireSchoolContext, examsRoutes)
+app.use('/api/assignments', requireSchoolContext, assignmentsRoutes)
 app.use('/api/calendar', requireSchoolContext, calendarRoutes)
+app.use('/api/analytics', requireSchoolContext, analyticsRoutes)
+app.use('/api/ops-alerts', requireSchoolContext, opsAlertsRoutes)
+app.use('/api/sms', requireSchoolContext, smsRoutes)
+app.use('/api/accounting', requireSchoolContext, accountingRoutes)
+app.use('/api/payroll', requireSchoolContext, payrollRoutes)
+app.use('/api/hr', requireSchoolContext, hrRoutes)
+app.use('/api/inventory', requireSchoolContext, inventoryRoutes)
+app.use('/api/webhooks', requireSchoolContext, webhooksRoutes)
+app.use('/api/security', requireSchoolContext, securityRoutes)
 // ── Platform-level SuperAdmin Routes (no tenant context) ─────────────────────
 app.use('/api/superadmin', superadminRoutes)
 app.use('/api/superadmin/team', superadminTeamRoutes)

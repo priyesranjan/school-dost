@@ -23,9 +23,12 @@ export const rolePermissions: Record<Role, string[]> = {
     'student-detail',
     'parents',
     'staff',
+    'hr-operations',
     'staff-detail',
     'fees',
     'expenses',
+    'payroll',
+    'inventory',
     'attendance',
     'assignments',
     'exams',
@@ -45,6 +48,7 @@ export const rolePermissions: Record<Role, string[]> = {
     'alerts-engine',
     'fee-risk-console',
     'parent-communication',
+    'webhooks',
     'fee-structure',
     'student-promotion',
     'class-management',
@@ -58,8 +62,10 @@ export const rolePermissions: Record<Role, string[]> = {
     'student-detail',
     'parents',
     'staff',
+    'hr-operations',
     'staff-detail',
     'attendance',
+    'hr-operations',
     'assignments',
     'exams',
     'calendar',
@@ -91,7 +97,7 @@ export const rolePermissions: Record<Role, string[]> = {
   ],
 
   // ─── Financial Scope ───────────────────────────────────────
-  accountant: ['dashboard', 'fees', 'expenses', 'reports', 'sms', 'profile', 'fee-risk-console', 'fee-structure'],
+  accountant: ['dashboard', 'fees', 'expenses', 'payroll', 'inventory', 'reports', 'sms', 'profile', 'fee-risk-console', 'fee-structure'],
 
   // ─── Front Desk ────────────────────────────────────────────
   receptionist: [

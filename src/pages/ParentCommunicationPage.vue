@@ -405,7 +405,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useStudentStore } from '@/stores/students'
 import { useSmsStore } from '@/stores/sms'
 import { useFeeStore } from '@/stores/fees'
@@ -471,6 +471,10 @@ const recipientList = computed(() => {
 const totalParents = computed(() => parentContacts.value.length)
 const recipientCount = computed(() => recipientList.value.length)
 const recentLogs = computed(() => [...smsStore.logs].slice(0, 10))
+
+onMounted(() => {
+  void smsStore.fetchLogs()
+})
 
 const audiences = computed<Array<{ value: AudienceMode; label: string; icon: string; count: number }>>(() => [
   { value: 'all', label: 'All Parents', icon: '👨‍👩‍👧', count: parentContacts.value.length },

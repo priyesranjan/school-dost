@@ -5,6 +5,7 @@ import { loginSchema, otpSendSchema, otpVerifySchema, refreshTokenSchema, logout
 import { requireAuth } from '../middleware/auth'
 import { sendOtp, verifyOtp } from '../services/otpService'
 import { loginWithPassword } from '../services/authService'
+import { buildSessionMetadata } from '../services/securityService'
 import {
   listRefreshSessionsForUser,
   revokeAllRefreshTokensForUser,
@@ -20,7 +21,13 @@ router.get('/ping', (req, res) => res.json({ ping: 'pong' }))
 router.post('/login', otpVerifyLimiter, validateBody(loginSchema), async (req, res) => {
   const body = req.body as { email: string; password: string }
   try {
-    const result = await loginWithPassword(req.tenantDb!, body.email, body.password, req.tenantSlug || '')
+    const result = await loginWithPassword(
+      req.tenantDb!,
+      body.email,
+      body.password,
+      req.tenantSlug || '',
+      buildSessionMetadata(req),
+    )
     if (!result.ok) {
       res.status(401).json({ error: { code: result.code, message: result.message } })
       return
@@ -65,7 +72,7 @@ router.post('/otp/verify', otpVerifyLimiter, validateBody(otpVerifySchema), asyn
 router.post('/refresh', otpVerifyLimiter, validateBody(refreshTokenSchema), async (req, res) => {
   const body = req.body as { refresh_token: string }
   try {
-    const result = await rotateRefreshToken(req.tenantDb!, body.refresh_token)
+    const result = await rotateRefreshToken(req.tenantDb!, body.refresh_token, buildSessionMetadata(req))
     if (!result.ok) {
       res.status(401).json({ error: { code: result.code, message: result.message } })
       return

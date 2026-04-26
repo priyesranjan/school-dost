@@ -1,4 +1,5 @@
 import { Prisma, type PrismaClient } from '@prisma/client'
+import { studentCreateSchema } from '../validation/schemas'
 
 /**
  * Standard mapper to convert Prisma Student model to Frontend Student Type
@@ -85,6 +86,199 @@ function mapStudentToFrontend(row: any) {
     profile_photo_url: row.profilePhotoUrl,
     signature_url: row.signatureUrl,
     parent_user_id: row.parentUserId ? Number(row.parentUserId) : null,
+  }
+}
+
+const STUDENT_IMPORT_HEADERS: Record<string, string> = {
+  name: 'name',
+  student_name: 'name',
+  roll_number: 'roll_number',
+  roll_no: 'roll_number',
+  roll: 'roll_number',
+  class_name: 'class_name',
+  class: 'class_name',
+  section: 'section',
+  parent_name: 'parent_name',
+  parent: 'parent_name',
+  guardian_name: 'parent_name',
+  phone: 'phone',
+  mobile: 'phone',
+  mobile_number: 'phone',
+  email: 'email',
+  address: 'address',
+  admission_date: 'admission_date',
+  admissiondate: 'admission_date',
+  status: 'status',
+}
+
+type StudentImportIssue = {
+  row: number
+  code: string
+  message: string
+  student_name: string | null
+  roll_number: string | null
+}
+
+function normalizeImportHeader(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+}
+
+function parseCsvRow(line: string) {
+  const cells: string[] = []
+  let current = ''
+  let inQuotes = false
+
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index]
+
+    if (char === '"') {
+      if (inQuotes && line[index + 1] === '"') {
+        current += '"'
+        index += 1
+      } else {
+        inQuotes = !inQuotes
+      }
+      continue
+    }
+
+    if (char === ',' && !inQuotes) {
+      cells.push(current.trim())
+      current = ''
+      continue
+    }
+
+    current += char
+  }
+
+  cells.push(current.trim())
+  return cells
+}
+
+function buildImportRow(
+  headers: string[],
+  values: string[],
+  fallbackDate: string,
+) {
+  const data = Object.fromEntries(headers.map((header, index) => [header, (values[index] || '').trim()])) as Record<
+    string,
+    string
+  >
+  const status = (data.status || '').toLowerCase() === 'inactive' ? 'inactive' : 'active'
+  return {
+    name: data.name,
+    roll_number: data.roll_number,
+    class_name: data.class_name,
+    section: data.section || 'A',
+    parent_name: data.parent_name,
+    phone: data.phone,
+    admission_date: data.admission_date || fallbackDate,
+    email: data.email || null,
+    address: data.address || null,
+    status,
+  }
+}
+
+export async function importStudentsFromCsv(
+  db: PrismaClient,
+  input: {
+    csv_text: string
+    skip_duplicates?: boolean
+  },
+) {
+  const lines = input.csv_text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+
+  const issues: StudentImportIssue[] = []
+  const students: ReturnType<typeof mapStudentToFrontend>[] = []
+  const skipDuplicates = input.skip_duplicates ?? true
+
+  if (!lines.length) {
+    return {
+      summary: { total_rows: 0, created: 0, skipped: 0, failed: 0 },
+      students,
+      issues,
+    }
+  }
+
+  const rawHeaders = parseCsvRow(lines[0])
+  const headers = rawHeaders.map((value) => STUDENT_IMPORT_HEADERS[normalizeImportHeader(value)] || '')
+  const requiredHeaders = ['name', 'roll_number', 'class_name', 'section', 'parent_name', 'phone']
+  const missingHeaders = requiredHeaders.filter((header) => !headers.includes(header))
+
+  if (missingHeaders.length) {
+    return {
+      summary: { total_rows: Math.max(0, lines.length - 1), created: 0, skipped: 0, failed: 0 },
+      students,
+      issues: [
+        {
+          row: 1,
+          code: 'INVALID_HEADER',
+          message: `Missing required columns: ${missingHeaders.join(', ')}`,
+          student_name: null,
+          roll_number: null,
+        },
+      ],
+    }
+  }
+
+  const fallbackDate = new Date().toISOString().slice(0, 10)
+  let skipped = 0
+  let failed = 0
+
+  for (let rowIndex = 1; rowIndex < lines.length; rowIndex += 1) {
+    const values = parseCsvRow(lines[rowIndex])
+    const rowNumber = rowIndex + 1
+    const rowInput = buildImportRow(headers, values, fallbackDate)
+    const parsed = studentCreateSchema.safeParse(rowInput)
+
+    if (!parsed.success) {
+      failed += 1
+      issues.push({
+        row: rowNumber,
+        code: 'INVALID_ROW',
+        message: parsed.error.issues.map((issue) => issue.message).join('; '),
+        student_name: rowInput.name || null,
+        roll_number: rowInput.roll_number || null,
+      })
+      continue
+    }
+
+    const result = await createStudent(db, parsed.data)
+    if (!result.ok) {
+      const isDuplicate = result.code === 'STUDENT_ALREADY_EXISTS'
+      if (isDuplicate && skipDuplicates) {
+        skipped += 1
+      } else {
+        failed += 1
+      }
+      issues.push({
+        row: rowNumber,
+        code: result.code,
+        message: result.message,
+        student_name: parsed.data.name,
+        roll_number: parsed.data.roll_number,
+      })
+      continue
+    }
+
+    students.push(result.data)
+  }
+
+  return {
+    summary: {
+      total_rows: Math.max(0, lines.length - 1),
+      created: students.length,
+      skipped,
+      failed,
+    },
+    students,
+    issues,
   }
 }
 

@@ -37,7 +37,11 @@ export function validateQuery(schema: ZodTypeAny) {
       })
       return
     }
-    req.query = parsed.data as Request['query']
+    const query = req.query as Record<string, unknown>
+    for (const key of Object.keys(query)) {
+      delete query[key]
+    }
+    Object.assign(query, parsed.data)
     next()
   }
 }

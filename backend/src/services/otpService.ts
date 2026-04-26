@@ -143,7 +143,9 @@ export async function verifyOtp(db: PrismaClient, sessionId: string, otp: string
     isRoot,
   }
   const accessToken = createAccessToken(claims)
-  const refreshToken = await issueRefreshToken(db, claims)
+  const refreshToken = await issueRefreshToken(db, claims, {
+    session_id: `otp-${session.sessionId}`,
+  })
 
   return {
     ok: true as const,

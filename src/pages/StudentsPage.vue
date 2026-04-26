@@ -14,7 +14,23 @@
             Lifecycle management and identity verification for the student body.
           </p>
         </div>
-        <div class="flex items-center gap-3">
+        <div class="flex flex-wrap items-center gap-3">
+          <input ref="csvInputRef" type="file" accept=".csv,text/csv" class="hidden" @change="handleImportStudents" />
+          <AppButton
+            variant="secondary"
+            @click="downloadImportTemplate"
+            class="h-[48px] border-none bg-gray-50 px-6 font-black text-gray-600 hover:bg-gray-100 dark:bg-gray-700/50 dark:text-gray-300"
+          >
+            CSV Template
+          </AppButton>
+          <AppButton
+            variant="secondary"
+            @click="openImportPicker"
+            :loading="importInFlight"
+            class="h-[48px] border-none bg-gray-50 px-6 font-black text-gray-600 hover:bg-gray-100 dark:bg-gray-700/50 dark:text-gray-300"
+          >
+            Bulk Import
+          </AppButton>
           <AppButton variant="secondary" @click="handleExportStudents" class="h-[48px] border-none bg-gray-50 px-6 font-black text-gray-600 hover:bg-gray-100 dark:bg-gray-700/50 dark:text-gray-300">
             ⬇ Data Export
           </AppButton>
@@ -46,6 +62,44 @@
         </div>
       </div>
     </div>
+
+    <AppCard v-if="importReport" class="border-none shadow-xl">
+      <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <p class="text-[10px] font-black uppercase tracking-widest text-primary-500">Student Import Report</p>
+          <h2 class="mt-2 text-2xl font-black tracking-tight text-gray-900 dark:text-white">Latest CSV run</h2>
+          <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            We imported {{ importReport.summary.created }} records and flagged {{ importReport.summary.failed + importReport.summary.skipped }} rows for review.
+          </p>
+        </div>
+        <div class="grid min-w-[280px] grid-cols-2 gap-3 text-sm">
+          <div class="rounded-2xl bg-emerald-50 px-4 py-3 dark:bg-emerald-900/20">
+            <p class="text-[10px] font-black uppercase tracking-widest text-emerald-600">Created</p>
+            <p class="mt-1 text-2xl font-black text-emerald-700 dark:text-emerald-300">{{ importReport.summary.created }}</p>
+          </div>
+          <div class="rounded-2xl bg-sky-50 px-4 py-3 dark:bg-sky-900/20">
+            <p class="text-[10px] font-black uppercase tracking-widest text-sky-600">Rows Read</p>
+            <p class="mt-1 text-2xl font-black text-sky-700 dark:text-sky-300">{{ importReport.summary.total_rows }}</p>
+          </div>
+          <div class="rounded-2xl bg-amber-50 px-4 py-3 dark:bg-amber-900/20">
+            <p class="text-[10px] font-black uppercase tracking-widest text-amber-600">Skipped</p>
+            <p class="mt-1 text-2xl font-black text-amber-700 dark:text-amber-300">{{ importReport.summary.skipped }}</p>
+          </div>
+          <div class="rounded-2xl bg-rose-50 px-4 py-3 dark:bg-rose-900/20">
+            <p class="text-[10px] font-black uppercase tracking-widest text-rose-600">Failed</p>
+            <p class="mt-1 text-2xl font-black text-rose-700 dark:text-rose-300">{{ importReport.summary.failed }}</p>
+          </div>
+        </div>
+      </div>
+      <div v-if="importReport.issues.length" class="mt-5 rounded-2xl border border-amber-100 bg-amber-50/70 p-4 dark:border-amber-900/40 dark:bg-amber-900/10">
+        <p class="text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-300">Rows Needing Attention</p>
+        <ul class="mt-3 space-y-2 text-sm text-amber-900 dark:text-amber-100">
+          <li v-for="issue in importReport.issues.slice(0, 6)" :key="`${issue.row}-${issue.code}-${issue.roll_number || 'na'}`">
+            Row {{ issue.row }}: {{ issue.message }}
+          </li>
+        </ul>
+      </div>
+    </AppCard>
 
     <!-- Integrated Search & Discovery Hub -->
     <AppCard :no-padding="true" class="overflow-hidden border-none shadow-2xl">
@@ -277,13 +331,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch } from 'vue'
-import type { Student } from '@/types'
+import { ref, reactive, computed, watch, onMounted } from 'vue'
+import type { Student, StudentImportReport } from '@/types'
 import { useStudentStore } from '@/stores/students'
 import { useClassStore } from '@/stores/classes'
 import { useToastStore } from '@/stores/toast'
 import { useTableSort } from '@/composables/useTableSort'
-import { exportStudentList } from '@/utils/export'
+import { exportStudentList, exportToCsv } from '@/utils/export'
 import { sanitizeObject } from '@/utils/sanitize'
 import AppCard from '@/components/ui/AppCard.vue'
 import AppButton from '@/components/ui/AppButton.vue'
@@ -305,6 +359,9 @@ const isEditing = ref(false)
 const editingId = ref<number | null>(null)
 const deleteTarget = ref<Student | null>(null)
 const parentLookupStatus = ref<'none' | 'found' | 'new'>('none')
+const csvInputRef = ref<HTMLInputElement | null>(null)
+const importReport = ref<StudentImportReport | null>(null)
+const importInFlight = ref(false)
 
 
 // High-fidelity Census Stats
@@ -368,6 +425,10 @@ const selectedClassSections = computed(() => {
 
 // Reset section when class changes
 watch(() => form.class_name, () => { form.section = 'A' })
+
+onMounted(() => {
+  void studentStore.fetchStudents()
+})
 
 function resetForm() {
   Object.assign(form, defaultForm)
@@ -459,5 +520,36 @@ async function handleDelete() {
 function handleExportStudents() {
   exportStudentList(studentStore.filteredStudents)
   toast.success('Census data exported successfully.')
+}
+
+function openImportPicker() {
+  csvInputRef.value?.click()
+}
+
+function downloadImportTemplate() {
+  exportToCsv(
+    'student_import_template',
+    ['Name', 'Roll No', 'Class', 'Section', 'Parent Name', 'Phone', 'Email', 'Admission Date'],
+    [['Aarav Sharma', '2026001', 'Class 10', 'A', 'Rajesh Sharma', '9876543210', 'aarav@school.com', '2026-04-26']],
+  )
+  toast.success('Student import template downloaded.')
+}
+
+async function handleImportStudents() {
+  const file = csvInputRef.value?.files?.[0]
+  if (!file) return
+
+  importInFlight.value = true
+  try {
+    const text = await file.text()
+    importReport.value = await studentStore.importStudentsCsv(text)
+  } catch {
+    // Store handles toast
+  } finally {
+    importInFlight.value = false
+    if (csvInputRef.value) {
+      csvInputRef.value.value = ''
+    }
+  }
 }
 </script>

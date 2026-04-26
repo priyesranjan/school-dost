@@ -1,8 +1,15 @@
 import type { PrismaClient } from '@prisma/client'
 import { verifyPassword, createAccessToken } from './authTokenService'
 import { issueRefreshToken } from './refreshTokenService'
+import { getOrCreateSecurityPolicy } from './securityService'
 
-export async function loginWithPassword(db: PrismaClient, email: string, password: string, tenantSlug: string) {
+export async function loginWithPassword(
+  db: PrismaClient,
+  email: string,
+  password: string,
+  tenantSlug: string,
+  sessionMeta?: { session_id?: string | null; user_agent?: string | null; ip_address?: string | null },
+) {
   // 1. Try SuperAdmin lookup (Platform level)
   try {
     const superAdmin = await (db as any).superAdmin.findUnique({ where: { email } })
@@ -18,7 +25,7 @@ export async function loginWithPassword(db: PrismaClient, email: string, passwor
           isRoot: superAdmin.isRoot,
         }
         const accessToken = createAccessToken(claims)
-        const refreshToken = await issueRefreshToken(db, claims)
+        const refreshToken = await issueRefreshToken(db, claims, sessionMeta)
         return {
           ok: true as const,
           data: {
@@ -48,6 +55,13 @@ export async function loginWithPassword(db: PrismaClient, email: string, passwor
     return { ok: false as const, code: 'INVALID_CREDENTIALS', message: 'Invalid email or password' }
   }
 
+  try {
+    const policy = await getOrCreateSecurityPolicy(db)
+    if (policy.two_factor_required_admins && user.role === 'admin') {
+      return { ok: false as const, code: 'TWO_FACTOR_REQUIRED', message: 'Admin accounts must use OTP login under current security policy' }
+    }
+  } catch {}
+
   const isValid = await verifyPassword(password, user.passwordHash)
   if (!isValid) {
     return { ok: false as const, code: 'INVALID_CREDENTIALS', message: 'Invalid email or password' }
@@ -69,7 +83,7 @@ export async function loginWithPassword(db: PrismaClient, email: string, passwor
   }
 
   const accessToken = createAccessToken(claims)
-  const refreshToken = await issueRefreshToken(db, claims)
+  const refreshToken = await issueRefreshToken(db, claims, sessionMeta)
 
   return {
     ok: true as const,

@@ -324,8 +324,48 @@
         </div>
       </header>
 
+      <!-- Subscription Expiry Banner -->
+      <div v-if="showBanner && !isExpired && !isSuspended" :class="['flex items-center justify-between gap-3 px-5 py-2.5 text-xs font-bold print:hidden', bannerUrgent ? 'bg-red-600 text-white' : 'bg-amber-500 text-white']"
+        style="animation: slideDown 0.3s ease-out;">
+        <div class="flex items-center gap-2">
+          <span>{{ bannerUrgent ? '🚨' : '⏰' }}</span>
+          <span v-if="subscriptionStatus === 'trial'">
+            Trial expires in <strong>{{ daysLeft }} day{{ daysLeft !== 1 ? 's' : '' }}</strong>.
+            {{ bannerUrgent ? 'URGENT: Contact SuperAdmin immediately!' : 'Subscribe now to keep access.' }}
+          </span>
+          <span v-else>
+            Subscription ends in <strong>{{ daysLeft }} day{{ daysLeft !== 1 ? 's' : '' }}</strong>. Please renew.
+          </span>
+        </div>
+        <span class="rounded bg-white/20 px-2 py-0.5 text-[10px] uppercase tracking-wider">Contact Admin</span>
+      </div>
+
       <!-- Page content -->
-      <main class="flex-1 overflow-y-auto p-4 lg:p-8 dark:text-gray-100 print:overflow-visible print:p-0 print:block">
+      <!-- EXPIRED / SUSPENDED BLOCK SCREEN -->
+      <div v-if="isExpired || isSuspended" class="flex flex-1 flex-col items-center justify-center bg-gray-50 dark:bg-gray-900 p-8 print:hidden">
+        <div class="max-w-md text-center">
+          <div class="text-7xl mb-4">{{ isExpired ? '🔒' : '⛔' }}</div>
+          <h2 class="text-2xl font-black text-gray-900 dark:text-white mb-2">
+            {{ isExpired ? 'Subscription Expired' : 'Account Suspended' }}
+          </h2>
+          <p class="text-gray-500 dark:text-gray-400 mb-6">
+            {{ isExpired
+              ? 'Your subscription has expired. Please contact your administrator to renew and restore access.'
+              : 'Your account has been suspended. Please contact support for assistance.'
+            }}
+          </p>
+          <div class="rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-900/20 mb-6">
+            <p class="text-sm font-bold text-red-700 dark:text-red-400">Access Blocked</p>
+            <p class="text-xs text-red-600 dark:text-red-500 mt-1">All school data is safe. Renew to regain access immediately.</p>
+          </div>
+          <div class="flex gap-3 justify-center">
+            <a href="mailto:support@schooldost.in" class="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-blue-700">📧 Contact Support</a>
+            <button @click="auth.logout()" class="rounded-xl border border-gray-300 px-5 py-2.5 text-sm font-bold text-gray-700 hover:bg-gray-50">Sign Out</button>
+          </div>
+        </div>
+      </div>
+
+      <main v-else class="flex-1 overflow-y-auto p-4 lg:p-8 dark:text-gray-100 print:overflow-visible print:p-0 print:block">
         <slot />
       </main>
     </div>
@@ -338,6 +378,7 @@ import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useFeeStore } from '@/stores/fees'
 import { useNotificationStore } from '@/stores/notifications'
+import { useTenantsStore } from '@/stores/tenants'
 import { useDarkMode } from '@/composables/useDarkMode'
 import { useBranding } from '@/composables/useBranding'
 import AppBreadcrumbs from '@/components/ui/AppBreadcrumbs.vue'
@@ -347,8 +388,30 @@ const route = useRoute()
 const auth = useAuthStore()
 const feeStore = useFeeStore()
 const notifStore = useNotificationStore()
+const tenantStore = useTenantsStore()
 const { isDark, toggle: toggleDark } = useDarkMode()
 useBranding()
+
+// ── Subscription state for current school ─────────────────────
+const currentTenant = computed(() => {
+  if (auth.user?.role === 'superadmin') return null
+  const tenantId = auth.user?.tenant_id
+  if (!tenantId) return null
+  return tenantStore.tenants.find((t) => t.id === tenantId) ?? null
+})
+
+const subscriptionStatus = computed(() => currentTenant.value?.subscription_status ?? 'active')
+const daysLeft = computed(() => currentTenant.value ? tenantStore.getDaysRemaining(currentTenant.value) : 999)
+const isExpired = computed(() => subscriptionStatus.value === 'expired')
+const isSuspended = computed(() => subscriptionStatus.value === 'suspended')
+const showBanner = computed(() => {
+  if (!currentTenant.value) return false
+  if (isExpired.value || isSuspended.value) return true
+  if (subscriptionStatus.value === 'trial' && daysLeft.value <= 7) return true
+  if (subscriptionStatus.value === 'active' && daysLeft.value <= 5) return true
+  return false
+})
+const bannerUrgent = computed(() => isExpired.value || isSuspended.value || daysLeft.value <= 3)
 
 const sidebarOpen = ref(false)
 const sidebarCollapsed = ref(false)
@@ -1006,6 +1069,7 @@ const menuGroups = [
       { name: 'enrollment-numbers', label: 'Enrollment Numbers', path: '/enrollment-numbers', icon: EnrollmentIcon },
       { name: 'parents', label: 'Parents & Guardians', path: '/parents', icon: ParentIcon },
       { name: 'staff', label: 'Staff & Faculty', path: '/staff', icon: StaffIcon },
+      { name: 'hr-operations', label: 'HR Operations', path: '/hr-operations', icon: StaffIcon },
       { name: 'id-cards', label: 'ID Cards', path: '/id-cards', icon: IdCardIcon },
       { name: 'certificates', label: 'Certificates', path: '/certificates', icon: CertificateIcon },
     ],
@@ -1023,6 +1087,8 @@ const menuGroups = [
         },
       },
       { name: 'expenses', label: 'Expenses (P&L)', path: '/expenses', icon: ExpenseIcon },
+      { name: 'payroll', label: 'Payroll', path: '/payroll', icon: StaffIcon },
+      { name: 'inventory', label: 'Inventory & Procurement', path: '/inventory', icon: SettingsIcon },
       { name: 'fee-risk-console', label: 'Fee Risk Console', path: '/fee-risk-console', icon: FeeRiskIcon },
       { name: 'fee-structure', label: 'Fee Structure', path: '/fee-structure', icon: FeeStructureIcon },
     ],
@@ -1033,6 +1099,7 @@ const menuGroups = [
       { name: 'notices', label: 'Notices', path: '/notices', icon: NoticeIcon },
       { name: 'sms', label: 'SMS Outreach', path: '/sms', icon: SmsIcon },
       { name: 'parent-communication', label: 'Parent Comms Hub', path: '/parent-communication', icon: ParentCommsIcon },
+      { name: 'webhooks', label: 'Webhooks', path: '/webhooks', icon: SettingsIcon },
       { name: 'audit-logs', label: 'Audit Logs', path: '/audit-logs', icon: AuditIcon },
       { name: 'ops-alerts', label: 'Ops Alerts', path: '/ops-alerts', icon: AlertIcon },
       { name: 'settings', label: 'Settings', path: '/settings', icon: SettingsIcon },

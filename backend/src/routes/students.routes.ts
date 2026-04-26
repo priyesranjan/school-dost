@@ -2,8 +2,15 @@ import { Router } from 'express'
 import { requireAuth, requireRole } from '../middleware/auth'
 import { writeActionLimiter } from '../middleware/rateLimit'
 import { validateBody } from '../middleware/validation'
-import { studentCreateSchema } from '../validation/schemas'
-import { createStudent, listStudents, getStudent, updateStudent, deleteStudent } from '../services/studentsService'
+import { studentCreateSchema, studentImportSchema } from '../validation/schemas'
+import {
+  createStudent,
+  listStudents,
+  getStudent,
+  updateStudent,
+  deleteStudent,
+  importStudentsFromCsv,
+} from '../services/studentsService'
 import { appendAuditLog } from '../services/auditLogService'
 
 function parsePage(value: unknown, fallback: number) {
@@ -33,6 +40,31 @@ router.get('/', requireAuth, async (req, res) => {
     res.status(500).json({ error: { code: 'STUDENT_LIST_FAILED', message } })
   }
 })
+
+router.post(
+  '/import',
+  requireAuth,
+  requireRole(['admin', 'receptionist']),
+  writeActionLimiter,
+  validateBody(studentImportSchema),
+  async (req, res) => {
+    try {
+      const data = await importStudentsFromCsv(req.tenantDb!, req.body)
+      await appendAuditLog(req.tenantDb!, {
+        action: 'students_imported',
+        module: 'students',
+        actor_name: req.auth?.name || 'Unknown',
+        actor_role: req.auth?.role || 'unknown',
+        target: 'CSV import',
+        metadata: `rows=${data.summary.total_rows} created=${data.summary.created} skipped=${data.summary.skipped} failed=${data.summary.failed}`,
+      })
+      res.status(201).json({ data })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to import students'
+      res.status(500).json({ error: { code: 'STUDENT_IMPORT_FAILED', message } })
+    }
+  },
+)
 
 router.post(
   '/',

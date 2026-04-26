@@ -9,13 +9,14 @@ import { CircuitOpenError } from '@/services/circuitBreakerService'
 import type { AuthUser, OtpChallenge } from '@/types'
 
 // Demo users for login
-const demoUsers: { email: string; password: string; name: string; role: Role; phone: string }[] = [
+const demoUsers: { email: string; password: string; name: string; role: Role; phone: string; tenant_id?: string }[] = [
   {
     email: 'priyesranjan@gmail.com',
     password: 'admin123',
     name: 'Priyes Ranjan',
     role: 'superadmin',
     phone: '9288075422',
+    // superadmin has no tenant_id — manages all schools
   },
   {
     email: 'superadmin@platform.com',
@@ -24,13 +25,18 @@ const demoUsers: { email: string; password: string; name: string; role: Role; ph
     role: 'superadmin',
     phone: '9876543200',
   },
-  { email: 'admin@school.com', password: 'admin123', name: 'Admin User', role: 'admin', phone: '9876543201' },
-  { email: 'accountant@school.com', password: 'acc123', name: 'Ramesh Verma', role: 'accountant', phone: '9876543202' },
-  { email: 'teacher@school.com', password: 'teach123', name: 'Priya Sharma', role: 'teacher', phone: '9876543203' },
-  { email: 'reception@school.com', password: 'rec123', name: 'Neha Singh', role: 'receptionist', phone: '9876543204' },
-  { email: 'student@school.com', password: 'student123', name: 'Aarav Patel', role: 'student', phone: '9876543205' },
-  { email: 'parent@school.com', password: 'parent123', name: 'Vijay Patel', role: 'parent', phone: '9876543206' },
-  { email: 'hod@school.com', password: 'hod123', name: 'Dr. Ramesh Gupta', role: 'hod', phone: '9876543207' },
+  // School: Delhi Public School (tenant_dps) — 450 students, Premium plan
+  { email: 'admin@school.com',       password: 'admin123',   name: 'Admin User',       role: 'admin',        phone: '9876543201', tenant_id: 'tenant_dps' },
+  { email: 'accountant@school.com',  password: 'acc123',     name: 'Ramesh Verma',     role: 'accountant',   phone: '9876543202', tenant_id: 'tenant_dps' },
+  { email: 'teacher@school.com',     password: 'teach123',   name: 'Priya Sharma',     role: 'teacher',      phone: '9876543203', tenant_id: 'tenant_dps' },
+  { email: 'reception@school.com',   password: 'rec123',     name: 'Neha Singh',       role: 'receptionist', phone: '9876543204', tenant_id: 'tenant_dps' },
+  { email: 'student@school.com',     password: 'student123', name: 'Aarav Patel',      role: 'student',      phone: '9876543205', tenant_id: 'tenant_dps' },
+  { email: 'parent@school.com',      password: 'parent123',  name: 'Vijay Patel',      role: 'parent',       phone: '9876543206', tenant_id: 'tenant_dps' },
+  { email: 'hod@school.com',         password: 'hod123',     name: 'Dr. Ramesh Gupta', role: 'hod',          phone: '9876543207', tenant_id: 'tenant_dps' },
+  // School: Bright Future Academy (tenant_bright) — 180 students, Trial expiring in 4 days
+  { email: 'admin@brightfuture.in',  password: 'admin123',   name: 'Rajesh Agarwal',   role: 'admin',        phone: '9876543210', tenant_id: 'tenant_bright' },
+  // School: KV No.1 Ranchi (tenant_kvno1) — expired school
+  { email: 'principal@kvno1.edu.in', password: 'admin123',   name: 'R.K. Sharma',      role: 'admin',        phone: '9876543220', tenant_id: 'tenant_kvno1' },
 ]
 
 function toAuthUser(data: (typeof demoUsers)[number]): AuthUser {
@@ -39,6 +45,7 @@ function toAuthUser(data: (typeof demoUsers)[number]): AuthUser {
     role: data.role,
     email: data.email,
     phone: data.phone,
+    tenant_id: data.tenant_id,  // ← pass tenant_id so subscription card shows correct school
   }
 }
 
@@ -138,6 +145,10 @@ export const useAuthStore = defineStore('auth', () => {
       const token = result.access_token || 'demo-token-' + Date.now()
       const refreshToken = result.refresh_token || null
       const resolvedUser = result.user || pendingUser.value
+      if (!resolvedUser) {
+        toast.error('Login session could not be resolved')
+        return false
+      }
 
       localStorage.setItem('auth_token', token)
       if (refreshToken) localStorage.setItem('refresh_token', refreshToken)
@@ -149,10 +160,10 @@ export const useAuthStore = defineStore('auth', () => {
         localStorage.removeItem('dev_tenant_slug')
       }
       user.value = resolvedUser
-      toast.success(`Welcome back, ${resolvedUser!.name}!`)
+      toast.success(`Welcome back, ${resolvedUser.name}!`)
       pendingOtp.value = null
       pendingUser.value = null
-      router.push(resolvedUser!.role === 'superadmin' ? { name: 'superadmin-dashboard' } : { name: 'dashboard' })
+      router.push(resolvedUser.role === 'superadmin' ? { name: 'superadmin-dashboard' } : { name: 'dashboard' })
       return true
     } catch (error) {
       if (error instanceof CircuitOpenError) {
@@ -179,6 +190,10 @@ export const useAuthStore = defineStore('auth', () => {
       const token = result.access_token as string
       const refreshToken = result.refresh_token || null
       const resolvedUser = result.user
+      if (!token || !resolvedUser) {
+        toast.error('Login response was incomplete')
+        return false
+      }
 
       localStorage.setItem('auth_token', token)
       if (refreshToken) localStorage.setItem('refresh_token', refreshToken)
@@ -191,8 +206,8 @@ export const useAuthStore = defineStore('auth', () => {
       }
       user.value = resolvedUser
       
-      toast.success(`Logged in successfully. Welcome back, ${resolvedUser!.name}!`)
-      router.push(resolvedUser!.role === 'superadmin' ? { name: 'superadmin-dashboard' } : { name: 'dashboard' })
+      toast.success(`Logged in successfully. Welcome back, ${resolvedUser.name}!`)
+      router.push(resolvedUser.role === 'superadmin' ? { name: 'superadmin-dashboard' } : { name: 'dashboard' })
       return true
     } catch (error) {
       toast.error('Login failed. Please check your credentials.')

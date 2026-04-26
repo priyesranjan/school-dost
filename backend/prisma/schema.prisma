@@ -87,10 +87,103 @@ enum PaymentMethod {
   cheque
 }
 
+enum ExpensePaymentMethod {
+  cash
+  bank_transfer
+  cheque
+  card
+  upi
+}
+
+enum LedgerAccountType {
+  asset
+  liability
+  income
+  expense
+  equity
+}
+
+enum BankEntryDirection {
+  inflow
+  outflow
+}
+
 enum AttendanceStatus {
   present
   absent
   late
+}
+
+enum SmsLogType {
+  payment
+  due_reminder
+  attendance
+  general
+  notice
+  schedule
+  campaign
+  otp
+}
+
+enum SmsDeliveryStatus {
+  pending
+  sent
+  failed
+}
+
+enum DeliveryChannel {
+  sms
+  whatsapp
+}
+
+enum WebhookDeliveryStatus {
+  pending
+  success
+  failed
+}
+
+enum PayrollStatus {
+  pending
+  paid
+}
+
+enum PurchaseOrderStatus {
+  draft
+  approved
+  received
+  cancelled
+}
+
+enum LeaveRequestStatus {
+  pending
+  approved
+  rejected
+  cancelled
+  completed
+}
+
+enum AppraisalStatus {
+  draft
+  published
+}
+
+enum AssignmentWorkflowStatus {
+  active
+  completed
+  archived
+}
+
+enum AssignmentSubmissionStatus {
+  submitted
+  reviewed
+  returned
+}
+
+enum ClassroomResourceType {
+  document
+  worksheet
+  video
+  link
 }
 
 enum CertificateType {
@@ -123,6 +216,11 @@ model User {
   noticesApproved Notice[]  @relation("NoticeApprovedBy")
   noticesRejected Notice[]  @relation("NoticeRejectedBy")
   children        Student[] @relation("ParentToStudent")
+  assignmentsCreated    Assignment[]          @relation("AssignmentCreatedBy")
+  assignmentSubmissions AssignmentSubmission[]
+  leaveRequestsFiled    LeaveRequest[]        @relation("LeaveRequestedBy")
+  leaveRequestsApproved LeaveRequest[]        @relation("LeaveApprovedBy")
+  appraisalsReviewed    StaffAppraisal[]      @relation("AppraisalReviewedBy")
 
   @@index([role])
   @@index([status])
@@ -258,9 +356,277 @@ model StaffMember {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
+  payrollProfile PayrollProfile?
+  payrollRecords PayrollRecord[]
+  leaveRequests  LeaveRequest[]
+  appraisals     StaffAppraisal[]
+
   @@index([role])
   @@index([department])
   @@index([status])
+}
+
+model SecurityPolicy {
+  id                      BigInt   @id @default(autoincrement())
+  passwordMinLength       Int      @default(8)
+  requireUppercase        Boolean  @default(false)
+  requireLowercase        Boolean  @default(true)
+  requireNumber           Boolean  @default(false)
+  requireSpecialChar      Boolean  @default(false)
+  sessionTimeoutHours     Int      @default(168)
+  allowConcurrentSessions Boolean  @default(true)
+  enforceIpAllowlist      Boolean  @default(false)
+  ipAllowlist             String[] @default([])
+  twoFactorRequiredAdmins Boolean  @default(false)
+  updatedByName           String?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+}
+
+model PayrollProfile {
+  id             BigInt   @id @default(autoincrement())
+  staffMemberId  BigInt   @unique
+  baseSalary     Decimal  @db.Decimal(12, 2)
+  allowances     Decimal  @default(0) @db.Decimal(12, 2)
+  deductions     Decimal  @default(0) @db.Decimal(12, 2)
+  paymentMethod  String?
+  bankName       String?
+  bankAccountNo  String?
+  ifscCode       String?
+  panNumber      String?
+  notes          String?  @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  staffMember    StaffMember    @relation(fields: [staffMemberId], references: [id], onDelete: Cascade)
+  payrollRecords PayrollRecord[]
+
+  @@index([staffMemberId])
+}
+
+model PayrollRecord {
+  id               BigInt        @id @default(autoincrement())
+  staffMemberId     BigInt
+  payrollProfileId  BigInt?
+  month             DateTime
+  baseSalary        Decimal      @db.Decimal(12, 2)
+  allowances        Decimal      @default(0) @db.Decimal(12, 2)
+  deductions        Decimal      @default(0) @db.Decimal(12, 2)
+  grossPay          Decimal      @db.Decimal(12, 2)
+  netPay            Decimal      @db.Decimal(12, 2)
+  status            PayrollStatus @default(pending)
+  paymentReference  String?
+  paidAt            DateTime?
+  generatedAt       DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  notes             String?      @db.Text
+
+  staffMember       StaffMember     @relation(fields: [staffMemberId], references: [id], onDelete: Cascade)
+  payrollProfile    PayrollProfile? @relation(fields: [payrollProfileId], references: [id], onDelete: SetNull)
+
+  @@unique([staffMemberId, month])
+  @@index([month])
+  @@index([status])
+  @@index([staffMemberId, status])
+}
+
+model LeaveRequest {
+  id                BigInt            @id @default(autoincrement())
+  staffMemberId      BigInt
+  requestedByUserId  BigInt?
+  approvedByUserId   BigInt?
+  leaveType          String
+  startDate          DateTime
+  endDate            DateTime
+  reason             String?          @db.Text
+  decisionNote       String?          @db.Text
+  status             LeaveRequestStatus @default(pending)
+  requestedAt        DateTime         @default(now())
+  decidedAt          DateTime?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  staffMember      StaffMember @relation(fields: [staffMemberId], references: [id], onDelete: Cascade)
+  requestedByUser  User?       @relation("LeaveRequestedBy", fields: [requestedByUserId], references: [id], onDelete: SetNull)
+  approvedByUser   User?       @relation("LeaveApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([staffMemberId])
+  @@index([status])
+  @@index([startDate, endDate])
+  @@index([requestedByUserId])
+  @@index([approvedByUserId])
+}
+
+model StaffAppraisal {
+  id               BigInt          @id @default(autoincrement())
+  staffMemberId     BigInt
+  reviewerUserId    BigInt?
+  reviewPeriod      String
+  reviewDate        DateTime
+  overallRating     Decimal        @db.Decimal(3, 2)
+  strengths         String?        @db.Text
+  improvementAreas  String?        @db.Text
+  goals             String?        @db.Text
+  status            AppraisalStatus @default(draft)
+  publishedAt       DateTime?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  staffMember    StaffMember @relation(fields: [staffMemberId], references: [id], onDelete: Cascade)
+  reviewerUser   User?       @relation("AppraisalReviewedBy", fields: [reviewerUserId], references: [id], onDelete: SetNull)
+
+  @@index([staffMemberId])
+  @@index([status])
+  @@index([reviewDate])
+  @@index([reviewerUserId])
+}
+
+model Vendor {
+  id           BigInt          @id @default(autoincrement())
+  name         String
+  contactName  String?
+  phone        String?
+  email        String?
+  address      String?
+  gstin        String?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  inventoryItems InventoryItem[]
+  purchaseOrders PurchaseOrder[]
+
+  @@index([name])
+}
+
+model InventoryItem {
+  id            BigInt              @id @default(autoincrement())
+  sku           String              @unique
+  name          String
+  category      String
+  unit          String              @default("unit")
+  currentStock  Int                 @default(0)
+  reorderLevel  Int                 @default(0)
+  unitCost      Decimal?            @db.Decimal(12, 2)
+  location      String?
+  notes         String?             @db.Text
+  vendorId      BigInt?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  vendor             Vendor?              @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  purchaseOrderLines PurchaseOrderLine[]
+
+  @@index([category])
+  @@index([currentStock])
+  @@index([vendorId])
+}
+
+model PurchaseOrder {
+  id            BigInt               @id @default(autoincrement())
+  poNumber      String               @unique
+  vendorId      BigInt
+  orderDate     DateTime
+  expectedDate  DateTime?
+  status        PurchaseOrderStatus  @default(draft)
+  totalAmount   Decimal              @db.Decimal(12, 2)
+  notes         String?              @db.Text
+  approvedAt    DateTime?
+  receivedAt    DateTime?
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  vendor Vendor              @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  lines  PurchaseOrderLine[]
+
+  @@index([vendorId])
+  @@index([status])
+  @@index([orderDate])
+}
+
+model PurchaseOrderLine {
+  id               BigInt        @id @default(autoincrement())
+  purchaseOrderId  BigInt
+  inventoryItemId  BigInt
+  quantity         Int
+  unitPrice        Decimal       @db.Decimal(12, 2)
+  lineTotal        Decimal       @db.Decimal(12, 2)
+  createdAt        DateTime      @default(now())
+
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  inventoryItem InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
+
+  @@index([purchaseOrderId])
+  @@index([inventoryItemId])
+}
+
+model Assignment {
+  id              BigInt                   @id @default(autoincrement())
+  title           String
+  description     String?                  @db.Text
+  subject         String
+  className       String
+  dueDate         DateTime
+  resourceUrl     String?
+  status          AssignmentWorkflowStatus @default(active)
+  teacherName     String?
+  createdByUserId BigInt?
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+
+  createdByUser User?                  @relation("AssignmentCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  submissions   AssignmentSubmission[]
+  resources     ClassroomResource[]
+
+  @@index([className])
+  @@index([subject])
+  @@index([status])
+  @@index([dueDate])
+  @@index([createdByUserId])
+}
+
+model ClassroomResource {
+  id              BigInt                @id @default(autoincrement())
+  title           String
+  description     String?               @db.Text
+  className       String
+  subject         String
+  resourceType    ClassroomResourceType
+  url             String
+  assignmentId    BigInt?
+  publishedByName String?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  assignment Assignment? @relation(fields: [assignmentId], references: [id], onDelete: SetNull)
+
+  @@index([className])
+  @@index([subject])
+  @@index([resourceType])
+  @@index([assignmentId])
+}
+
+model AssignmentSubmission {
+  id             BigInt                     @id @default(autoincrement())
+  assignmentId   BigInt
+  userId         BigInt
+  userName       String
+  userRole       String
+  status         AssignmentSubmissionStatus @default(submitted)
+  submissionText String?                    @db.Text
+  attachmentUrl  String?
+  feedback       String?                    @db.Text
+  score          Decimal?                   @db.Decimal(5, 2)
+  submittedAt    DateTime                   @default(now())
+  updatedAt      DateTime                   @updatedAt
+
+  assignment Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([assignmentId, userId])
+  @@index([assignmentId])
+  @@index([userId])
+  @@index([status])
+  @@index([submittedAt])
 }
 
 
@@ -300,6 +666,98 @@ model FeePayment {
   @@index([studentId])
   @@index([status])
   @@index([paymentDate])
+}
+
+model Expense {
+  id             BigInt               @id @default(autoincrement())
+  title          String
+  category       String
+  amount         Decimal              @db.Decimal(12, 2)
+  date           DateTime
+  vendorOrStaff  String?
+  paymentMethod  ExpensePaymentMethod
+  referenceNo    String?
+  notes          String?              @db.Text
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  @@index([category])
+  @@index([date])
+  @@index([paymentMethod])
+}
+
+model LedgerAccount {
+  id        BigInt            @id @default(autoincrement())
+  code      String            @unique
+  name      String
+  type      LedgerAccountType
+  isSystem  Boolean           @default(false)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  entries LedgerEntry[]
+
+  @@index([type])
+}
+
+model LedgerEntry {
+  id          BigInt   @id @default(autoincrement())
+  accountId   BigInt
+  entryDate   DateTime
+  description String
+  debit       Decimal  @default(0) @db.Decimal(12, 2)
+  credit      Decimal  @default(0) @db.Decimal(12, 2)
+  sourceType  String?
+  sourceId    String?
+  createdAt   DateTime @default(now())
+
+  account LedgerAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  bankMatches BankReconciliationEntry[]
+
+  @@index([accountId])
+  @@index([entryDate])
+  @@index([sourceType, sourceId])
+}
+
+model BankAccount {
+  id               BigInt   @id @default(autoincrement())
+  accountName      String
+  bankName         String
+  accountNumber    String
+  ifscCode         String?
+  openingBalance   Decimal  @default(0) @db.Decimal(12, 2)
+  notes            String?  @db.Text
+  lastReconciledAt DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  reconciliationEntries BankReconciliationEntry[]
+
+  @@index([bankName])
+  @@index([accountName])
+}
+
+model BankReconciliationEntry {
+  id             BigInt             @id @default(autoincrement())
+  bankAccountId  BigInt
+  ledgerEntryId  BigInt?
+  transactionDate DateTime
+  description    String
+  referenceNo    String?
+  amount         Decimal            @db.Decimal(12, 2)
+  direction      BankEntryDirection
+  matched        Boolean            @default(false)
+  notes          String?            @db.Text
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  bankAccount BankAccount  @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+  ledgerEntry LedgerEntry? @relation(fields: [ledgerEntryId], references: [id], onDelete: SetNull)
+
+  @@index([bankAccountId])
+  @@index([ledgerEntryId])
+  @@index([matched])
+  @@index([transactionDate])
 }
 
 model AttendanceRecord {
@@ -415,18 +873,90 @@ model OtpSession {
   @@index([expiresAt])
 }
 
+model SmsLog {
+  id                BigInt            @id @default(autoincrement())
+  phone             String
+  studentName       String?
+  message           String            @db.Text
+  type              SmsLogType        @default(general)
+  status            SmsDeliveryStatus @default(pending)
+  channel           DeliveryChannel   @default(sms)
+  templateId        String?
+  providerMessageId String?
+  providerResponse  Json?
+  error             String?
+  sentAt            DateTime?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@index([phone])
+  @@index([type])
+  @@index([status])
+  @@index([channel])
+  @@index([sentAt])
+}
+
+model WebhookSubscription {
+  id            BigInt   @id @default(autoincrement())
+  name          String
+  url           String
+  secret        String
+  events        String[]
+  active        Boolean  @default(true)
+  headers       Json?
+  timeoutMs     Int      @default(5000)
+  failureCount  Int      @default(0)
+  lastSuccessAt DateTime?
+  lastFailureAt DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  deliveries WebhookDelivery[]
+
+  @@index([active])
+  @@index([lastSuccessAt])
+  @@index([lastFailureAt])
+}
+
+model WebhookDelivery {
+  id             BigInt                 @id @default(autoincrement())
+  subscriptionId BigInt
+  eventType      String
+  attempt        Int                    @default(1)
+  status         WebhookDeliveryStatus  @default(pending)
+  requestHeaders Json?
+  requestBody    Json
+  responseStatus Int?
+  responseBody   String?
+  error          String?
+  deliveredAt    DateTime?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  subscription WebhookSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([subscriptionId, createdAt])
+  @@index([eventType, createdAt])
+  @@index([status])
+}
+
 model RefreshToken {
-  id        BigInt    @id @default(autoincrement())
-  tokenHash String    @unique
-  userSub   String
-  name      String
-  role      String
-  email     String
-  expiresAt DateTime
-  revokedAt DateTime?
-  createdAt DateTime  @default(now())
+  id          BigInt    @id @default(autoincrement())
+  tokenHash   String    @unique
+  userSub     String
+  name        String
+  role        String
+  email       String
+  sessionId   String?
+  userAgent   String?
+  ipAddress   String?
+  lastSeenAt  DateTime?
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
 
   @@index([userSub, expiresAt])
+  @@index([sessionId])
 }
 
 enum CalendarEventType {

@@ -20,12 +20,12 @@
         </div>
         <div class="grid grid-cols-3 gap-3">
           <div class="rounded-2xl bg-white/10 px-4 py-3 backdrop-blur-sm border border-white/20 text-center">
-            <p class="text-xl font-black text-white">₹{{ (feeStore.totalCollected / 1000).toFixed(0) }}k</p>
+            <p class="text-xl font-black text-white">₹{{ (headerCollected / 1000).toFixed(0) }}k</p>
             <p class="text-[9px] font-black uppercase tracking-widest text-white/60">Collected</p>
           </div>
           <div class="rounded-2xl bg-white/10 px-4 py-3 backdrop-blur-sm border border-white/20 text-center">
-            <p class="text-xl font-black text-white">{{ feeStore.duePayments.length }}</p>
-            <p class="text-[9px] font-black uppercase tracking-widest text-white/60">Pending</p>
+            <p class="text-xl font-black text-white">₹{{ (pendingTotal / 1000).toFixed(0) }}k</p>
+            <p class="text-[9px] font-black uppercase tracking-widest text-white/60">Pending ₹</p>
           </div>
           <div class="rounded-2xl bg-white/10 px-4 py-3 backdrop-blur-sm border border-white/20 text-center">
             <p class="text-xl font-black text-white">
@@ -54,6 +54,34 @@
       >
         {{ tab.label }}
       </button>
+    </div>
+
+    <div
+      class="rounded-2xl border border-teal-100 bg-teal-50/50 p-4 dark:border-teal-900/40 dark:bg-teal-900/10"
+    >
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p class="text-xs font-black uppercase tracking-widest text-teal-700 dark:text-teal-300">
+            Enterprise Analytics Mode
+          </p>
+          <p class="mt-1 text-sm font-medium text-teal-900 dark:text-teal-100">
+            {{ analyticsOverview ? 'Live tenant analytics' : 'Local fallback snapshot' }}
+          </p>
+          <p class="text-xs text-teal-700/80 dark:text-teal-300/80">
+            Window: last {{ analyticsRangeDays }} days
+            <span v-if="analyticsUpdatedAt"> · Updated {{ analyticsUpdatedAt }}</span>
+          </p>
+        </div>
+        <div class="flex items-center gap-2">
+          <StatusBadge :color="analyticsOverview ? 'green' : analyticsError ? 'yellow' : 'gray'">
+            {{ analyticsLoading ? 'Refreshing' : analyticsOverview ? 'API Live' : 'Fallback' }}
+          </StatusBadge>
+          <StatusBadge color="blue">Recovery {{ recoveryRate.toFixed(1) }}%</StatusBadge>
+        </div>
+      </div>
+      <p v-if="analyticsError" class="mt-2 text-xs font-medium text-amber-700 dark:text-amber-300">
+        {{ analyticsError }}
+      </p>
     </div>
 
     <!-- Daily Collection Report -->
@@ -153,7 +181,7 @@
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatCard
           title="Total Pending"
-          :value="feeStore.totalPending"
+          :value="pendingTotal"
           icon="⚠️"
           icon-bg="bg-red-50"
           value-color="text-red-600"
@@ -321,6 +349,36 @@
           </div>
         </div>
       </AppCard>
+
+      <AppCard v-if="monthlyFeeTrend.length" title="6-Month Fee Trend" class="mt-6">
+        <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          <div
+            v-for="item in monthlyFeeTrend"
+            :key="item.month"
+            class="rounded-xl border border-gray-100 bg-gray-50/60 p-3 dark:border-gray-700 dark:bg-gray-800/40"
+          >
+            <p class="text-[11px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400">
+              {{ formatMonth(item.month) }}
+            </p>
+            <div class="mt-2 space-y-2">
+              <div>
+                <p class="text-[10px] font-bold uppercase text-gray-400">Collected</p>
+                <p class="text-sm font-black text-emerald-600">₹{{ item.collected.toLocaleString('en-IN') }}</p>
+                <div class="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+                  <div
+                    class="h-full rounded-full bg-emerald-500"
+                    :style="{ width: ((item.collected / maxMonthlyFeeTrend) * 100).toFixed(2) + '%' }"
+                  ></div>
+                </div>
+              </div>
+              <div>
+                <p class="text-[10px] font-bold uppercase text-gray-400">Due</p>
+                <p class="text-sm font-black text-rose-600">₹{{ item.due.toLocaleString('en-IN') }}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </AppCard>
     </template>
 
     <!-- Class Analytics Tab -->
@@ -402,6 +460,58 @@
           </div>
         </div>
       </div>
+
+      <AppCard v-if="riskStudents.length" title="Top Risk Students" class="mt-6" :no-padding="true">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm">
+            <thead>
+              <tr class="border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50">
+                <th class="px-6 py-3 font-medium text-gray-500 dark:text-gray-400">Student</th>
+                <th class="px-6 py-3 font-medium text-gray-500 dark:text-gray-400">Class</th>
+                <th class="px-6 py-3 font-medium text-gray-500 dark:text-gray-400 text-right">Due</th>
+                <th class="px-6 py-3 font-medium text-gray-500 dark:text-gray-400 text-center">Absent</th>
+                <th class="px-6 py-3 font-medium text-gray-500 dark:text-gray-400 text-center">Risk</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-50 dark:divide-gray-700">
+              <tr
+                v-for="student in riskStudents"
+                :key="student.student_id"
+                class="hover:bg-gray-50/50 dark:hover:bg-gray-700/50"
+              >
+                <td class="px-6 py-3 font-medium text-gray-900 dark:text-white">{{ student.student_name }}</td>
+                <td class="px-6 py-3 text-gray-600 dark:text-gray-300">{{ student.class_name }}</td>
+                <td class="px-6 py-3 text-right font-semibold text-rose-600">
+                  ₹{{ student.fee_due_amount.toLocaleString('en-IN') }}
+                </td>
+                <td class="px-6 py-3 text-center text-gray-700 dark:text-gray-200">{{ student.absent_days }}</td>
+                <td class="px-6 py-3 text-center">
+                  <StatusBadge :color="riskBadgeColor(student.risk_level)">
+                    {{ student.risk_level.toUpperCase() }} · {{ student.risk_score }}
+                  </StatusBadge>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </AppCard>
+
+      <AppCard v-if="subjectPerformance.length" title="Exam Performance by Subject" class="mt-6">
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div
+            v-for="subject in subjectPerformance"
+            :key="subject.subject"
+            class="rounded-xl border border-gray-100 bg-gray-50/60 p-4 dark:border-gray-700 dark:bg-gray-800/40"
+          >
+            <p class="text-xs font-black uppercase tracking-widest text-gray-500">{{ subject.subject }}</p>
+            <p class="mt-1 text-2xl font-black text-gray-900 dark:text-white">{{ subject.avg_percentage.toFixed(1) }}%</p>
+            <p class="text-xs text-gray-500 dark:text-gray-400">
+              {{ subject.attempts }} attempts · {{ subject.exams_count }} exams
+            </p>
+          </div>
+        </div>
+      </AppCard>
+
       <EmptyState
         v-if="!classAnalytics.length"
         title="No class data"
@@ -412,12 +522,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
+import type { AnalyticsRiskStudent, EnterpriseAnalyticsOverview } from '@/types'
 import { useFeeStore } from '@/stores/fees'
 import { useAttendanceStore } from '@/stores/attendance'
 import { useAccountingStore } from '@/stores/accounting'
 import { useStudentStore } from '@/stores/students'
 import { exportFeeCollection, exportPendingFees, exportAttendance } from '@/utils/export'
+import { analyticsService } from '@/services/analyticsService'
 import StatCard from '@/components/ui/StatCard.vue'
 import AppCard from '@/components/ui/AppCard.vue'
 import AppButton from '@/components/ui/AppButton.vue'
@@ -429,6 +541,11 @@ const attendanceStore = useAttendanceStore()
 const accStore = useAccountingStore()
 const studentStore = useStudentStore()
 
+const analyticsOverview = ref<EnterpriseAnalyticsOverview | null>(null)
+const analyticsLoading = ref(false)
+const analyticsError = ref<string | null>(null)
+let analyticsRefreshTimer: ReturnType<typeof setTimeout> | null = null
+
 const activeTab = ref('collection')
 const tabs = [
   { key: 'collection', label: '💰 Daily Collection' },
@@ -438,10 +555,53 @@ const tabs = [
   { key: 'analytics', label: '🏫 Class Analytics' },
 ]
 
+function toRangeDays(start: string, end: string): number {
+  const from = new Date(`${start}T00:00:00`)
+  const to = new Date(`${end}T00:00:00`)
+  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) return 30
+  const diff = Math.floor((to.getTime() - from.getTime()) / (24 * 60 * 60 * 1000)) + 1
+  return Math.min(365, Math.max(7, diff))
+}
+
 // Collection Report
 const today = new Date().toISOString().split('T')[0]
 const dateFrom = ref('2026-03-01')
 const dateTo = ref(today)
+
+const requestedRangeDays = computed(() => toRangeDays(dateFrom.value, dateTo.value))
+const analyticsRangeDays = computed(() => analyticsOverview.value?.period_days ?? requestedRangeDays.value)
+const analyticsUpdatedAt = computed(() => {
+  if (!analyticsOverview.value?.generated_at) return null
+  return new Date(analyticsOverview.value.generated_at).toLocaleString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+})
+
+async function loadAnalyticsOverview() {
+  analyticsLoading.value = true
+  analyticsError.value = null
+  try {
+    const response = await analyticsService.getOverview(requestedRangeDays.value)
+    analyticsOverview.value = response.data
+  } catch {
+    analyticsOverview.value = null
+    analyticsError.value = 'Live analytics unavailable right now. Showing local calculations.'
+  } finally {
+    analyticsLoading.value = false
+  }
+}
+
+watch([dateFrom, dateTo], () => {
+  if (analyticsRefreshTimer) {
+    clearTimeout(analyticsRefreshTimer)
+  }
+  analyticsRefreshTimer = setTimeout(() => {
+    void loadAnalyticsOverview()
+  }, 250)
+})
 
 const filteredCollections = computed(() => {
   return feeStore.payments
@@ -463,12 +623,29 @@ const collectionStats = computed(() => {
   }
 })
 
+const headerCollected = computed(() => analyticsOverview.value?.kpis.fees_collected ?? feeStore.totalCollected)
+const pendingTotal = computed(() => analyticsOverview.value?.kpis.fees_pending ?? feeStore.totalPending)
+const recoveryRate = computed(() => {
+  const live = analyticsOverview.value?.kpis.fee_recovery_rate
+  if (typeof live === 'number') return live
+  const base = headerCollected.value + pendingTotal.value
+  return base > 0 ? (headerCollected.value / base) * 100 : 0
+})
+
 // Pending
 const unpaidCount = computed(() => feeStore.duePayments.filter((p) => p.status === 'unpaid').length)
 const partialCount = computed(() => feeStore.duePayments.filter((p) => p.status === 'partial').length)
 
 // Attendance
 const attDate = ref(today)
+watch(
+  attDate,
+  (value) => {
+    void attendanceStore.fetchByDate(value)
+  },
+  { immediate: true },
+)
+
 const dateAttendance = computed(() => attendanceStore.records.filter((r) => r.date === attDate.value))
 const attStats = computed(() => {
   const records = dateAttendance.value
@@ -481,18 +658,24 @@ const attStats = computed(() => {
 })
 
 // Profit & Loss
-const totalRevenue = computed(() => feeStore.totalCollected)
-const expenseDist = computed(() => {
-  const dist: Record<string, number> = {}
-  accStore.expenses.forEach((e) => {
-    dist[e.category] = (dist[e.category] || 0) + e.amount
-  })
-  return dist
-})
+const totalRevenue = computed(() => headerCollected.value)
+const expenseDist = computed(() => accStore.expenseDistribution)
 const netProfit = computed(() => totalRevenue.value - accStore.totalExpenses)
 
+const monthlyFeeTrend = computed(() => analyticsOverview.value?.trends.fees_by_month || [])
+const maxMonthlyFeeTrend = computed(() => {
+  const maxValue = Math.max(...monthlyFeeTrend.value.map((item) => Math.max(item.collected, item.due)), 1)
+  return maxValue <= 0 ? 1 : maxValue
+})
+
+function formatMonth(month: string): string {
+  const dt = new Date(`${month}-01T00:00:00`)
+  if (Number.isNaN(dt.getTime())) return month
+  return dt.toLocaleDateString('en-IN', { month: 'short', year: '2-digit' })
+}
+
 // Class Analytics
-const classAnalytics = computed(() => {
+const localClassAnalytics = computed(() => {
   return studentStore.classes
     .map((cls) => {
       const students = studentStore.students.filter((s) => s.class_name === cls)
@@ -510,5 +693,32 @@ const classAnalytics = computed(() => {
       return { class_name: cls, students: students.length, attendance, feeRecovery, collected, outstanding }
     })
     .sort((a, b) => a.class_name.localeCompare(b.class_name))
+})
+
+const classAnalytics = computed(() => {
+  const live = analyticsOverview.value?.class_analytics
+  if (!live?.length) return localClassAnalytics.value
+  return live.map((item) => ({
+    class_name: item.class_name,
+    students: item.students,
+    attendance: Math.round(item.attendance_rate),
+    feeRecovery: Math.round(item.fee_recovery_rate),
+    collected: item.collected,
+    outstanding: item.outstanding,
+  }))
+})
+
+const riskStudents = computed(() => analyticsOverview.value?.risk_students || [])
+const subjectPerformance = computed(() => analyticsOverview.value?.trends.exam_performance_by_subject || [])
+
+function riskBadgeColor(level: AnalyticsRiskStudent['risk_level']): 'green' | 'yellow' | 'red' {
+  if (level === 'high') return 'red'
+  if (level === 'medium') return 'yellow'
+  return 'green'
+}
+
+onMounted(() => {
+  void accStore.refresh()
+  void loadAnalyticsOverview()
 })
 </script>

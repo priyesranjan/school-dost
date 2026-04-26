@@ -16,6 +16,10 @@ vi.mock('../services/auditLogService', () => ({
   appendAuditLog: vi.fn(),
 }))
 
+vi.mock('../services/webhookService', () => ({
+  dispatchWebhookEvent: vi.fn(),
+}))
+
 // Mock the token verified payload
 vi.mock('../services/authTokenService', () => ({
   verifyAuthToken: vi.fn((token: string) => {

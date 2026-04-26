@@ -2,13 +2,27 @@ import { createHash } from 'node:crypto'
 import { Prisma, type PrismaClient } from '@prisma/client'
 import { createAccessToken, createRefreshToken, type AuthClaims, verifyRefreshToken } from './authTokenService'
 import { env } from '../config/env'
+import { getSecurityPolicyEnforcement } from './securityService'
+
+type SessionMetadata = {
+  session_id?: string | null
+  user_agent?: string | null
+  ip_address?: string | null
+}
 
 function hashToken(token: string) {
   return createHash('sha256').update(token).digest('hex')
 }
 
-export async function issueRefreshToken(db: PrismaClient, claims: AuthClaims) {
-  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+export async function issueRefreshToken(db: PrismaClient, claims: AuthClaims, metadata?: SessionMetadata) {
+  let timeoutHours = 7 * 24
+  try {
+    const policy = await getSecurityPolicyEnforcement(db)
+    if (policy && 'session_timeout_hours' in (policy as any) && Number((policy as any).session_timeout_hours) > 0) {
+      timeoutHours = Number((policy as any).session_timeout_hours)
+    }
+  } catch {}
+  const expiresAt = new Date(Date.now() + timeoutHours * 60 * 60 * 1000)
 
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const token = createRefreshToken(claims)
@@ -20,6 +34,10 @@ export async function issueRefreshToken(db: PrismaClient, claims: AuthClaims) {
           name: claims.name,
           role: claims.role,
           email: claims.email,
+          sessionId: metadata?.session_id || null,
+          userAgent: metadata?.user_agent || null,
+          ipAddress: metadata?.ip_address || null,
+          lastSeenAt: new Date(),
           expiresAt,
         },
       })
@@ -35,14 +53,14 @@ export async function issueRefreshToken(db: PrismaClient, claims: AuthClaims) {
   throw new Error('Failed to issue refresh token')
 }
 
-export async function rotateRefreshToken(db: PrismaClient, refreshToken: string) {
+export async function rotateRefreshToken(db: PrismaClient, refreshToken: string, metadata?: SessionMetadata) {
   const decoded = verifyRefreshToken(refreshToken)
   if (decoded.token_type !== 'refresh') {
     return { ok: false as const, code: 'INVALID_REFRESH_TOKEN', message: 'Invalid refresh token type' }
   }
 
   const tokenHash = hashToken(refreshToken)
-  const stored = await db.refreshToken.findUnique({ where: { tokenHash } })
+  const stored = (await db.refreshToken.findUnique({ where: { tokenHash } })) as any
   if (!stored) {
     return { ok: false as const, code: 'INVALID_REFRESH_TOKEN', message: 'Refresh token is invalid or expired' }
   }
@@ -62,7 +80,12 @@ export async function rotateRefreshToken(db: PrismaClient, refreshToken: string)
 
   await db.refreshToken.update({
     where: { tokenHash },
-    data: { revokedAt: new Date() },
+    data: {
+      revokedAt: new Date(),
+      lastSeenAt: new Date(),
+      userAgent: metadata?.user_agent || stored.userAgent || null,
+      ipAddress: metadata?.ip_address || stored.ipAddress || null,
+    },
   })
 
   const claims: AuthClaims = {
@@ -75,7 +98,11 @@ export async function rotateRefreshToken(db: PrismaClient, refreshToken: string)
   }
 
   const access_token = createAccessToken(claims)
-  const refresh_token = await issueRefreshToken(db, claims)
+  const refresh_token = await issueRefreshToken(db, claims, {
+    session_id: stored.sessionId || metadata?.session_id || null,
+    user_agent: metadata?.user_agent || stored.userAgent || null,
+    ip_address: metadata?.ip_address || stored.ipAddress || null,
+  })
 
   return {
     ok: true as const,
@@ -112,6 +139,10 @@ export async function listRefreshSessionsForUser(db: PrismaClient, userSub: stri
       name: true,
       role: true,
       email: true,
+      sessionId: true,
+      userAgent: true,
+      ipAddress: true,
+      lastSeenAt: true,
       createdAt: true,
       expiresAt: true,
       revokedAt: true,
@@ -124,6 +155,10 @@ export async function listRefreshSessionsForUser(db: PrismaClient, userSub: stri
       name: row.name,
       role: row.role,
       email: row.email,
+      session_id: row.sessionId ?? null,
+      user_agent: row.userAgent ?? null,
+      ip_address: row.ipAddress ?? null,
+      last_seen_at: row.lastSeenAt ? row.lastSeenAt.toISOString() : null,
       created_at: row.createdAt.toISOString(),
       expires_at: row.expiresAt.toISOString(),
       revoked_at: row.revokedAt ? row.revokedAt.toISOString() : null,

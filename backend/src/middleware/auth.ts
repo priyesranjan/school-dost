@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from 'express'
 import { verifyAuthToken, type AppRole, type AuthClaims } from '../services/authTokenService'
+import { extractClientIp, getSecurityPolicyEnforcement } from '../services/securityService'
 
 declare global {
   namespace Express {
@@ -9,7 +10,7 @@ declare global {
   }
 }
 
-export function requireAuth(req: Request, res: Response, next: NextFunction) {
+export async function requireAuth(req: Request, res: Response, next: NextFunction) {
   const authHeader = String(req.headers.authorization || '')
   if (!authHeader.startsWith('Bearer ')) {
     res.status(401).json({
@@ -24,6 +25,25 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
   const token = authHeader.slice(7).trim()
   try {
     req.auth = verifyAuthToken(token)
+    try {
+      if (req.tenantDb && req.tenantSlug && req.auth.role !== 'superadmin') {
+        const policy = await getSecurityPolicyEnforcement(req.tenantDb)
+        if (policy.enforce_ip_allowlist && policy.ip_allowlist.length) {
+          const clientIp = extractClientIp(req)
+          if (!policy.ip_allowlist.includes(clientIp)) {
+            res.status(403).json({
+              error: {
+                code: 'IP_NOT_ALLOWED',
+                message: 'This network location is not allowed by the institution security policy',
+              },
+            })
+            return
+          }
+        }
+      }
+    } catch {
+      // Security policy is advisory unless the tenant schema and policy table are available.
+    }
     next()
   } catch {
     res.status(401).json({

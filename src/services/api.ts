@@ -2,8 +2,10 @@ import axios from 'axios'
 import router from '@/router'
 import type { InternalAxiosRequestConfig } from 'axios'
 
+const configuredBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim()
+
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: configuredBaseUrl || '/api',
   headers: {
     'Content-Type': 'application/json',
     Accept: 'application/json',
@@ -39,7 +41,8 @@ async function tryRefreshToken(): Promise<string | null> {
   const refreshToken = localStorage.getItem('refresh_token')
   if (!refreshToken) return null
   try {
-    const res = await axios.post('/api/auth/refresh', { refresh_token: refreshToken })
+    const refreshUrl = configuredBaseUrl ? `${configuredBaseUrl.replace(/\/$/, '')}/auth/refresh` : '/api/auth/refresh'
+    const res = await axios.post(refreshUrl, { refresh_token: refreshToken })
     const { access_token, refresh_token: newRefresh } = res.data?.data || {}
     if (!access_token) return null
     localStorage.setItem('auth_token', access_token)

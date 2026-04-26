@@ -85,6 +85,12 @@ const routes: RouteRecordRaw[] = [
     meta: { title: 'Staff & Faculty' },
   },
   {
+    path: '/hr-operations',
+    name: 'hr-operations',
+    component: () => import('@/pages/HROperationsPage.vue'),
+    meta: { title: 'HR Operations' },
+  },
+  {
     path: '/staff/:id',
     name: 'staff-detail',
     component: () => import('@/pages/StaffDetailPage.vue'),
@@ -121,6 +127,18 @@ const routes: RouteRecordRaw[] = [
     meta: { title: 'Expenses & Ledger' },
   },
   {
+    path: '/payroll',
+    name: 'payroll',
+    component: () => import('@/pages/PayrollPage.vue'),
+    meta: { title: 'Payroll' },
+  },
+  {
+    path: '/inventory',
+    name: 'inventory',
+    component: () => import('@/pages/InventoryPage.vue'),
+    meta: { title: 'Inventory & Procurement' },
+  },
+  {
     path: '/calendar',
     name: 'calendar',
     component: () => import('@/pages/CalendarPage.vue'),
@@ -137,6 +155,12 @@ const routes: RouteRecordRaw[] = [
     name: 'sms',
     component: () => import('@/pages/SmsPage.vue'),
     meta: { title: 'SMS Notifications' },
+  },
+  {
+    path: '/webhooks',
+    name: 'webhooks',
+    component: () => import('@/pages/WebhooksPage.vue'),
+    meta: { title: 'Webhook Integrations' },
   },
   {
     path: '/settings',
