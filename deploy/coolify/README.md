@@ -1,11 +1,70 @@
 # Coolify Deployment Guide
 
-This repo is ready for a two-service Coolify deployment:
+This repo is now ready for two different Coolify deployment styles:
 
-1. `frontend`  
-   Vite app built into a static Nginx container from the root `Dockerfile`
-2. `backend`  
-   Express + Prisma app built from `backend/Dockerfile`
+1. `Docker Compose app` using the root [docker-compose.yaml](</c:/Priyes/ERP-School/docker-compose.yaml:1>)
+2. `Separate services` using the root `Dockerfile` for frontend and `backend/Dockerfile` for backend
+
+If Coolify is currently expecting a compose file, use option 1.
+
+## Fastest path: Docker Compose app
+
+Coolify can deploy the whole stack directly from the repo root now.
+
+### Compose file
+
+- Path: `docker-compose.yaml`
+
+### What it starts
+
+- `postgres`
+- `backend`
+- `frontend`
+
+### First-run behavior
+
+- Postgres creates:
+  - `erp_platform`
+  - `tenant_delhi_public_school`
+- Backend runs tenant Prisma migrations
+- Backend can seed platform metadata automatically when `INIT_PLATFORM_ON_BOOT=true`
+
+### Important envs for Coolify
+
+Set these on the Compose app:
+
+```env
+POSTGRES_USER=erp
+POSTGRES_PASSWORD=change-this-now
+JWT_SECRET=replace-with-strong-secret-at-least-24-chars
+JWT_REFRESH_SECRET=replace-with-strong-secret-at-least-24-chars
+AUDIT_SIGNING_SALT=replace-with-strong-secret-at-least-24-chars
+ALLOWED_ORIGINS=https://your-frontend-domain.com
+INIT_PLATFORM_ON_BOOT=true
+DEV_TENANT_SLUG=delhi-public-school
+DEV_TENANT_NAME=Delhi Public School
+DEV_TENANT_ADMIN_EMAIL=admin@school.com
+```
+
+Optional:
+
+```env
+FRONTEND_PORT=80
+VITE_TENANT_SLUG=delhi-public-school
+R2_ACCOUNT_ID=
+R2_ACCESS_KEY_ID=
+R2_SECRET_ACCESS_KEY=
+R2_BUCKET=
+R2_PUBLIC_BASE_URL=
+SMS_PROVIDER_API_KEY=
+WHATSAPP_PROVIDER_API_KEY=
+COMMS_PROVIDER_API_KEY=
+```
+
+### Notes
+
+- The frontend Nginx config proxies `/api/*` to the internal backend service, so `VITE_API_BASE_URL` can stay empty in the compose setup.
+- For a first live test, this is the simplest route.
 
 ## Recommended topology
 

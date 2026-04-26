@@ -1,0 +1,79 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-erp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-erp_dev_password_change_me}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./deploy/coolify/postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 8080
+      DATABASE_URL: postgresql://${POSTGRES_USER:-erp}:${POSTGRES_PASSWORD:-erp_dev_password_change_me}@postgres:5432/${TENANT_DB_NAME:-tenant_delhi_public_school}?schema=public
+      PLATFORM_DATABASE_URL: postgresql://${POSTGRES_USER:-erp}:${POSTGRES_PASSWORD:-erp_dev_password_change_me}@postgres:5432/${PLATFORM_DB_NAME:-erp_platform}?schema=public
+      PLATFORM_DB_ADMIN_URL: postgresql://${POSTGRES_USER:-erp}:${POSTGRES_PASSWORD:-erp_dev_password_change_me}@postgres:5432/postgres?schema=public
+      TENANT_DB_USER: ${POSTGRES_USER:-erp}
+      TENANT_DB_PASS: ${POSTGRES_PASSWORD:-erp_dev_password_change_me}
+      JWT_SECRET: ${JWT_SECRET:-replace-with-strong-secret-at-least-24-chars}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-replace-with-strong-refresh-secret-at-least-24-chars}
+      AUDIT_SIGNING_SALT: ${AUDIT_SIGNING_SALT:-replace-with-strong-audit-salt-at-least-24-chars}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-*}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-12h}
+      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
+      REFRESH_REVOKED_RETENTION_DAYS: ${REFRESH_REVOKED_RETENTION_DAYS:-30}
+      INIT_PLATFORM_ON_BOOT: ${INIT_PLATFORM_ON_BOOT:-true}
+      DEV_TENANT_SLUG: ${DEV_TENANT_SLUG:-delhi-public-school}
+      DEV_TENANT_NAME: ${DEV_TENANT_NAME:-Delhi Public School}
+      DEV_TENANT_ADMIN_EMAIL: ${DEV_TENANT_ADMIN_EMAIL:-admin@school.com}
+      R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
+      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:-}
+      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:-}
+      R2_BUCKET: ${R2_BUCKET:-}
+      R2_PUBLIC_BASE_URL: ${R2_PUBLIC_BASE_URL:-}
+      R2_SIGN_EXPIRES_SECONDS: ${R2_SIGN_EXPIRES_SECONDS:-300}
+      SMS_PROVIDER_API_KEY: ${SMS_PROVIDER_API_KEY:-}
+      SMS_PROVIDER_WEBHOOK_URL: ${SMS_PROVIDER_WEBHOOK_URL:-}
+      WHATSAPP_PROVIDER_API_KEY: ${WHATSAPP_PROVIDER_API_KEY:-}
+      WHATSAPP_PROVIDER_WEBHOOK_URL: ${WHATSAPP_PROVIDER_WEBHOOK_URL:-}
+      COMMS_PROVIDER_API_KEY: ${COMMS_PROVIDER_API_KEY:-}
+      COMMS_PROVIDER_WEBHOOK_URL: ${COMMS_PROVIDER_WEBHOOK_URL:-}
+    expose:
+      - "8080"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
+        VITE_TENANT_SLUG: ${VITE_TENANT_SLUG:-}
+        VITE_OTP_MODE: ${VITE_OTP_MODE:-api}
+        VITE_R2_MODE: ${VITE_R2_MODE:-api}
+        VITE_AUDIT_SIGNATURE_MODE: ${VITE_AUDIT_SIGNATURE_MODE:-api}
+        VITE_AUDIT_SIGNATURE_ENDPOINT: ${VITE_AUDIT_SIGNATURE_ENDPOINT:-/api/audit/sign}
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_started
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+
+volumes:
+  postgres_data:
