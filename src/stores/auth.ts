@@ -40,11 +40,18 @@ const demoUsers: { email: string; password: string; name: string; role: Role; ph
 ]
 
 function toAuthUser(data: (typeof demoUsers)[number]): AuthUser {
+  const tenantSlugById: Record<string, string> = {
+    tenant_dps: 'delhi-public-school',
+    tenant_bright: 'bright-future-academy',
+    tenant_kvno1: 'kv-no-1-ranchi',
+  }
+
   return {
     name: data.name,
     role: data.role,
     email: data.email,
     phone: data.phone,
+    tenant_slug: data.tenant_id ? tenantSlugById[data.tenant_id] : undefined,
     tenant_id: data.tenant_id,  // ← pass tenant_id so subscription card shows correct school
   }
 }
@@ -217,6 +224,36 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  async function loginAsDemoUser(email: string) {
+    loading.value = true
+    try {
+      const demoUser = demoUsers.find((u) => u.email === email)
+      if (!demoUser) {
+        toast.error('Demo user not found')
+        return false
+      }
+
+      const resolvedUser = toAuthUser(demoUser)
+      localStorage.setItem('auth_token', `demo-token-${resolvedUser.role}-${Date.now()}`)
+      localStorage.removeItem('refresh_token')
+      localStorage.setItem('auth_user', JSON.stringify(resolvedUser))
+
+      if (resolvedUser.tenant_slug) {
+        localStorage.setItem('dev_tenant_slug', resolvedUser.tenant_slug)
+      } else {
+        localStorage.removeItem('dev_tenant_slug')
+      }
+
+      user.value = resolvedUser
+      clearPendingOtp()
+      toast.success(`Logged in as ${resolvedUser.role}`)
+      router.push(resolvedUser.role === 'superadmin' ? { name: 'superadmin-dashboard' } : { name: 'dashboard' })
+      return true
+    } finally {
+      loading.value = false
+    }
+  }
+
   async function resendOtp() {
     if (!pendingUser.value) {
       toast.warning('Please start login again')
@@ -289,6 +326,7 @@ export const useAuthStore = defineStore('auth', () => {
     beginLogin,
     verifyLoginOtp,
     loginWithPassword,
+    loginAsDemoUser,
     resendOtp,
     setOtpChannel,
     clearPendingOtp,

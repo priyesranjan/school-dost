@@ -327,6 +327,16 @@ export const useTenantsStore = defineStore('tenants', () => {
     }
   }
 
+  async function deleteTenant(id: string) {
+    loading.value = true
+    try {
+      await superadminService.deleteTenant(id)
+      tenants.value = tenants.value.filter((tenant) => tenant.id !== id)
+    } finally {
+      loading.value = false
+    }
+  }
+
   // ── New subscription control actions ────────────────────────
 
   function activateTrial(id: string, days: number = TRIAL_DAYS_DEFAULT) {
@@ -438,6 +448,7 @@ export const useTenantsStore = defineStore('tenants', () => {
     onboardInstitution,
     suspendTenant,
     activateTenant,
+    deleteTenant,
     activateTrial,
     extendTrial,
     upgradePlan,

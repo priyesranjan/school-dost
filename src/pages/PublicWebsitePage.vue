@@ -1564,6 +1564,7 @@ import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useTenantsStore } from '@/stores/tenants'
 import { useNoticeStore } from '@/stores/notices'
+import { institutionService } from '@/services/institutionService'
 import type { TenantSummary, InstitutionProfile } from '@/types'
 
 const route = useRoute()
@@ -1728,12 +1729,36 @@ function restartSlideTimer() {
   }, 5000)
 }
 
-onMounted(() => {
+onMounted(async () => {
   const slug = route.params.slug as string
   const found = tenantsStore.getTenantBySlug(slug)
   if (found) {
     tenant.value = found
     profile.value = tenantsStore.getInstitutionProfile(found.id)
+  }
+  try {
+    const liveProfile = await institutionService.getProfile(slug)
+    if (liveProfile) {
+      profile.value = liveProfile
+      tenant.value = {
+        id: liveProfile.id,
+        slug: liveProfile.slug,
+        name: liveProfile.name,
+        type: liveProfile.type,
+        city: liveProfile.city,
+        state: liveProfile.state,
+        subscription_plan: liveProfile.subscription_plan,
+        subscription_status: liveProfile.subscription_status,
+        admin_email: liveProfile.admin_email,
+        admin_name: liveProfile.admin_name,
+        total_students: liveProfile.total_students,
+        total_staff: liveProfile.total_staff,
+        onboarded_at: liveProfile.onboarded_at,
+        logo_url: liveProfile.logo_url,
+      }
+    }
+  } catch {
+    // Keep local tenant fallback for offline/demo mode.
   }
   window.addEventListener('scroll', handleScroll)
 

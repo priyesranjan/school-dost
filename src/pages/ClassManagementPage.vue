@@ -500,7 +500,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useClassStore, type ClassRecord, type ClassSection } from '@/stores/classes'
 import { useStudentStore } from '@/stores/students'
 import { useToastStore } from '@/stores/toast'
@@ -516,6 +516,10 @@ const toast = useToastStore()
 
 const searchQuery = ref('')
 const viewMode = ref<'grid' | 'table'>('grid')
+
+onMounted(() => {
+  void classStore.fetchClasses()
+})
 
 const totalSections = computed(() => classStore.classes.reduce((s, c) => s + c.sections.length, 0))
 
@@ -686,13 +690,13 @@ function openEditModal(cls: ClassRecord) {
   showModal.value = true
 }
 
-function handleSave() {
+async function handleSave() {
   if (!form.name.trim() || !form.grade) {
     toast.warning('Class name and grade are required')
     return
   }
   if (isEditing.value && editTarget.value) {
-    classStore.updateClass(editTarget.value.id, {
+    await classStore.updateClass(editTarget.value.id, {
       name: form.name.trim(),
       grade: form.grade,
       class_teacher: form.class_teacher,
@@ -702,7 +706,7 @@ function handleSave() {
     })
   } else {
     try {
-      classStore.addClass({
+      await classStore.addClass({
         name: form.name.trim(),
         grade: form.grade,
         class_teacher: form.class_teacher,
@@ -737,12 +741,12 @@ function openAddSection(cls: ClassRecord) {
   showSectionModal.value = true
 }
 
-function handleAddSection() {
+async function handleAddSection() {
   if (!sectionTarget.value || !sectionForm.name.trim()) {
     toast.warning('Enter a section name')
     return
   }
-  classStore.addSection(sectionTarget.value.id, sectionForm.name.trim(), sectionForm.capacity || 40)
+  await classStore.addSection(sectionTarget.value.id, sectionForm.name.trim(), sectionForm.capacity || 40)
   showSectionModal.value = false
 }
 
@@ -755,9 +759,9 @@ function openRemoveSection(cls: ClassRecord, sec: ClassSection) {
   showRemoveSectionModal.value = true
 }
 
-function handleRemoveSection() {
+async function handleRemoveSection() {
   if (!removeSectionTarget.value) return
-  classStore.removeSection(removeSectionTarget.value.cls.id, removeSectionTarget.value.section.id)
+  await classStore.removeSection(removeSectionTarget.value.cls.id, removeSectionTarget.value.section.id)
   showRemoveSectionModal.value = false
 }
 
@@ -770,9 +774,9 @@ function confirmDelete(cls: ClassRecord) {
   showDeleteModal.value = true
 }
 
-function handleDelete() {
+async function handleDelete() {
   if (!deleteTarget.value) return
-  classStore.deleteClass(deleteTarget.value.id)
+  await classStore.deleteClass(deleteTarget.value.id)
   showDeleteModal.value = false
 }
 </script>

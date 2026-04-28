@@ -1,0 +1,62 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function sameTenant(tenantId) {
+      return signedIn() && request.auth.token.tenantId == tenantId;
+    }
+
+    function hasRole(role) {
+      return signedIn() && request.auth.token.role == role;
+    }
+
+    function hasAnyRole(roles) {
+      return signedIn() && request.auth.token.role in roles;
+    }
+
+    match /tenants/{tenantId} {
+      allow read: if sameTenant(tenantId) || hasRole('superadmin');
+      allow write: if hasRole('superadmin');
+
+      match /users/{userId} {
+        allow read: if sameTenant(tenantId) &&
+          (request.auth.uid == userId || hasAnyRole(['admin', 'principal', 'hod']));
+        allow write: if sameTenant(tenantId) && hasAnyRole(['admin', 'principal']);
+      }
+
+      match /students/{studentId} {
+        allow read: if sameTenant(tenantId);
+        allow write: if sameTenant(tenantId) && hasAnyRole(['admin', 'receptionist']);
+      }
+
+      match /classes/{classId} {
+        allow read: if sameTenant(tenantId);
+        allow write: if sameTenant(tenantId) && hasAnyRole(['admin', 'hod']);
+      }
+
+      match /attendance/{attendanceId} {
+        allow read: if sameTenant(tenantId);
+        allow write: if sameTenant(tenantId) && hasAnyRole(['admin', 'teacher']);
+      }
+
+      match /fees/{feeId} {
+        allow read: if sameTenant(tenantId);
+        allow write: if sameTenant(tenantId) && hasAnyRole(['admin', 'accountant']);
+      }
+
+      match /assignments/{assignmentId} {
+        allow read: if sameTenant(tenantId);
+        allow write: if sameTenant(tenantId) && hasAnyRole(['admin', 'hod', 'teacher']);
+      }
+
+      match /notifications/{notificationId} {
+        allow read: if sameTenant(tenantId);
+        allow write: if sameTenant(tenantId) && hasAnyRole(['admin', 'hod', 'teacher', 'receptionist']);
+      }
+    }
+  }
+}

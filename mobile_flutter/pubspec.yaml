@@ -33,8 +33,16 @@ dependencies:
 
   cupertino_icons: ^1.0.8
   http: ^1.5.0
-  shared_preferences: ^2.5.3
+  shared_preferences: ^2.5.5
   url_launcher: ^6.3.2
+  flutter_riverpod: ^3.3.1
+  dio: ^5.9.2
+  go_router: ^17.2.2
+  flutter_secure_storage: ^10.0.0
+  google_fonts: ^8.1.0
+  dartz: ^0.10.1
+  equatable: ^2.0.8
+  cached_network_image: ^3.4.1
 
 dev_dependencies:
   flutter_test:

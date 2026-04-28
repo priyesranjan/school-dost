@@ -8,6 +8,7 @@ export async function loginWithPassword(
   email: string,
   password: string,
   tenantSlug: string,
+  tenantId?: string,
   sessionMeta?: { session_id?: string | null; user_agent?: string | null; ip_address?: string | null },
 ) {
   // 1. Try SuperAdmin lookup (Platform level)
@@ -49,6 +50,10 @@ export async function loginWithPassword(
     // but in consolidated mode it will be there.
   }
 
+  if (!tenantSlug) {
+    return { ok: false as const, code: 'INVALID_CREDENTIALS', message: 'Invalid email or password' }
+  }
+
   // 2. Try User lookup (Tenant level)
   const user = await db.user.findUnique({ where: { email } })
   if (!user || user.status !== 'active' || !user.passwordHash) {
@@ -79,6 +84,7 @@ export async function loginWithPassword(
     role: user.role as any,
     email: user.email,
     tenantSlug,
+    tenantId,
     isRoot: false,
   }
 
@@ -97,6 +103,7 @@ export async function loginWithPassword(
         role: user.role,
         email: user.email,
         phone: user.phone,
+        tenant_id: tenantId,
         tenant_slug: tenantSlug,
       },
     },

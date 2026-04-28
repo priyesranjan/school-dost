@@ -3,9 +3,11 @@ import { otpSendLimiter, otpVerifyLimiter } from '../middleware/rateLimit'
 import { validateBody } from '../middleware/validation'
 import { loginSchema, otpSendSchema, otpVerifySchema, refreshTokenSchema, logoutSchema } from '../validation/schemas'
 import { requireAuth } from '../middleware/auth'
+import { getTenantPrismaClient } from '../middleware/tenantResolver'
 import { sendOtp, verifyOtp } from '../services/otpService'
 import { loginWithPassword } from '../services/authService'
 import { buildSessionMetadata } from '../services/securityService'
+import { getPlatformPrisma } from '../db/platformPool'
 import {
   listRefreshSessionsForUser,
   revokeAllRefreshTokensForUser,
@@ -18,16 +20,75 @@ const router = Router()
 
 router.get('/ping', (req, res) => res.json({ ping: 'pong' }))
 
+async function findTenantForLoginEmail(email: string) {
+  const platformDb = getPlatformPrisma()
+  const tenants = await (platformDb as any).tenant.findMany({
+    where: { status: { in: ['active', 'trial'] } },
+    select: { id: true, slug: true, dbName: true, dbHost: true, dbPort: true },
+  })
+
+  const matches = []
+  for (const tenant of tenants) {
+    if (!tenant.dbName) continue
+    const tenantDb = getTenantPrismaClient(tenant.dbName, tenant.dbHost, tenant.dbPort)
+    const user = await tenantDb.user.findUnique({ where: { email }, select: { id: true } }).catch(() => null)
+    if (user) matches.push({ tenant, tenantDb })
+  }
+
+  return matches
+}
+
 router.post('/login', otpVerifyLimiter, validateBody(loginSchema), async (req, res) => {
   const body = req.body as { email: string; password: string }
   try {
-    const result = await loginWithPassword(
+    const platformDb = getPlatformPrisma()
+    const platformResult = await loginWithPassword(
+      platformDb as any,
+      body.email,
+      body.password,
+      '',
+      undefined,
+      buildSessionMetadata(req),
+    )
+    if (platformResult.ok && platformResult.data.user.role === 'superadmin') {
+      res.json({ data: platformResult.data })
+      return
+    }
+
+    let result = await loginWithPassword(
       req.tenantDb!,
       body.email,
       body.password,
       req.tenantSlug || '',
+      req.tenant?.id,
       buildSessionMetadata(req),
     )
+
+    if (!result.ok && !req.tenantSlug && result.code === 'INVALID_CREDENTIALS') {
+      const matches = await findTenantForLoginEmail(body.email)
+      if (matches.length > 1) {
+        res.status(409).json({
+          error: {
+            code: 'TENANT_AMBIGUOUS',
+            message: 'This login exists in multiple schools. Please contact support to make the user ID unique.',
+          },
+        })
+        return
+      }
+
+      if (matches.length === 1) {
+        const { tenant, tenantDb } = matches[0]
+        result = await loginWithPassword(
+          tenantDb,
+          body.email,
+          body.password,
+          tenant.slug,
+          tenant.id,
+          buildSessionMetadata(req),
+        )
+      }
+    }
+
     if (!result.ok) {
       res.status(401).json({ error: { code: result.code, message: result.message } })
       return

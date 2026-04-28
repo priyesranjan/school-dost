@@ -1,10 +1,9 @@
 <template>
   <div class="w-full">
-    <AppCard :glass="true" class="p-2 sm:p-4 shadow-2xl">
-      <!-- Logo & Header -->
+    <AppCard :glass="true" class="p-2 shadow-2xl sm:p-4">
       <div class="mb-10 text-center">
         <div
-          class="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-600 to-primary-400 text-white text-3xl font-black shadow-xl shadow-primary-200 dark:shadow-none animate-hover-pulse"
+          class="animate-hover-pulse mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-600 to-primary-400 text-3xl font-black text-white shadow-xl shadow-primary-200 dark:shadow-none"
         >
           SE
         </div>
@@ -12,14 +11,20 @@
         <p class="mt-2 text-sm font-medium text-gray-500 dark:text-gray-400">Secure access to your academic hub</p>
       </div>
 
-      <!-- Step 1: Credentials -->
-      <form v-if="step === 'credentials'" @submit.prevent="handleLogin" class="space-y-6">
-        <div class="space-y-4">
+      <div class="space-y-6">
+        <div
+          class="rounded-2xl border border-primary-100 bg-primary-50/50 p-5 text-center text-sm dark:border-primary-900/30 dark:bg-primary-900/10"
+        >
+          <p class="text-[10px] font-black uppercase tracking-widest text-primary-600">Live Role Login</p>
+          <p class="mt-2 leading-relaxed text-gray-600 dark:text-gray-400">Enter user ID and password to continue.</p>
+        </div>
+
+        <form class="space-y-4" @submit.prevent="handleManualLogin">
           <AppInput
             v-model="form.email"
-            label="Email Address"
+            label="User ID / Email"
             type="email"
-            placeholder="admin@school.com"
+            placeholder="admin@school.test"
             required
             :error="errors.email"
           />
@@ -27,98 +32,56 @@
             v-model="form.password"
             label="Password"
             type="password"
-            placeholder="••••••••"
+            placeholder="Enter password"
             required
             :error="errors.password"
           />
-          <AppInput v-model="form.otpChannel" label="OTP Channel" type="select">
-            <option value="sms">SMS OTP (2Factor)</option>
-            <option value="whatsapp">WhatsApp OTP</option>
-          </AppInput>
-        </div>
 
-        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <AppButton type="submit" :loading="auth.loading" class="w-full h-12 text-base"> 
-            Request OTP 
-          </AppButton>
-          <AppButton 
-            variant="secondary" 
-            type="button" 
-            :loading="auth.loading" 
-            @click="handleDirectLogin" 
-            class="w-full h-12 text-base border-2 border-primary-200"
-          > 
-            Direct Login 
-          </AppButton>
-        </div>
-      </form>
-
-      <!-- Step 2: OTP -->
-      <form v-else @submit.prevent="handleVerifyOtp" class="space-y-6">
-        <div
-          class="rounded-2xl border border-primary-100 bg-primary-50/50 dark:border-primary-900/30 dark:bg-primary-900/10 p-5 text-sm text-center"
-        >
-          <p class="font-bold text-primary-800 dark:text-primary-300 uppercase tracking-widest text-[10px]">
-            OTP Verification
-          </p>
-          <p class="mt-2 text-[10px] font-black uppercase tracking-widest text-primary-600">
-            Channel: {{ form.otpChannel === 'whatsapp' ? 'WhatsApp' : 'SMS' }}
-          </p>
-          <p class="mt-2 text-gray-600 dark:text-gray-400 leading-relaxed">
-            We've sent a 6-digit code to <br />
-            <span class="font-bold text-gray-900 dark:text-white">{{ auth.pendingOtp?.destination_masked }}</span>
-          </p>
-          <div class="mt-4 flex items-center justify-center gap-2">
-            <span class="h-1.5 w-1.5 rounded-full bg-primary-500 animate-pulse"></span>
-            <p class="text-[10px] font-black text-primary-600 uppercase">Expires in {{ countdown }}s</p>
+          <div class="flex items-center justify-between gap-3 text-xs">
+            <label class="inline-flex items-center gap-2 font-bold text-gray-500 dark:text-gray-400">
+              <input
+                v-model="rememberMe"
+                type="checkbox"
+                class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+              />
+              Remember me
+            </label>
+            <button type="button" class="font-black text-primary-600 hover:text-primary-700" @click="showForgotHelp">
+              Forgot password?
+            </button>
           </div>
-          <div v-if="auth.pendingOtp?.demo_otp" class="mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border-2 border-yellow-200 dark:border-yellow-700/50 rounded-xl">
-            <p class="text-[10px] font-black text-yellow-800 dark:text-yellow-600 uppercase mb-1">Debug OTP</p>
-            <p class="text-2xl font-black text-yellow-900 dark:text-yellow-500 tracking-[0.2em]">{{ auth.pendingOtp.demo_otp }}</p>
-          </div>
+
+          <button
+            type="submit"
+            :disabled="auth.loading"
+            class="h-12 w-full rounded-xl bg-primary-600 text-base font-black text-white shadow-lg shadow-primary-500/20 transition-all hover:bg-primary-700 disabled:cursor-wait disabled:opacity-60"
+          >
+            {{ auth.loading ? 'Signing in...' : 'Login' }}
+          </button>
+        </form>
+
+        <div class="flex items-center gap-3">
+          <div class="h-px flex-1 bg-gray-100 dark:bg-gray-700"></div>
+          <span class="text-[10px] font-black uppercase tracking-widest text-gray-400">Quick Roles</span>
+          <div class="h-px flex-1 bg-gray-100 dark:bg-gray-700"></div>
         </div>
 
-        <AppInput
-          v-model="form.otp"
-          label="Verification Code"
-          placeholder="000000"
-          required
-          class="text-center tracking-[1em] font-black text-lg"
-          :error="errors.otp"
-        />
-
-        <div class="grid grid-cols-2 gap-3">
-          <AppButton variant="secondary" type="button" @click="goBack" class="h-12">Cancel</AppButton>
-          <AppButton type="submit" :loading="auth.loading" class="h-12">Verify</AppButton>
-        </div>
-
-        <button
-          type="button"
-          class="w-full text-xs font-bold uppercase tracking-widest text-primary-600 hover:text-primary-700 disabled:text-gray-400"
-          :disabled="countdown > 0"
-          @click="handleResendOtp"
-        >
-          Resend Code
-        </button>
-      </form>
-
-      <!-- Demo Help -->
-      <div class="mt-10 border-t border-gray-100 dark:border-gray-700/50 pt-8">
-        <p class="text-center text-[10px] font-black uppercase tracking-widest text-gray-400 mb-4">Quick Demo Access</p>
         <div class="grid grid-cols-2 gap-3">
           <button
-            v-for="u in auth.demoUsers"
-            :key="u.email"
+            v-for="account in roleAccounts"
+            :key="account.email"
             type="button"
-            @click="useDemoUser(u.email, u.password)"
-            class="group flex flex-col items-center gap-1 rounded-xl border border-gray-100 dark:border-gray-700 p-3 text-center transition-all hover:border-primary-200 hover:bg-primary-50/30 dark:hover:bg-primary-900/10"
+            :data-role="account.role"
+            :disabled="auth.loading"
+            class="group flex min-h-20 flex-col items-center justify-center gap-1 rounded-xl border border-gray-100 p-3 text-center transition-all hover:border-primary-200 hover:bg-primary-50/40 disabled:cursor-wait disabled:opacity-60 dark:border-gray-700 dark:hover:bg-primary-900/10"
+            @click="handleRoleLogin(account)"
           >
-            <span class="text-sm font-bold text-gray-900 dark:text-white capitalize group-hover:text-primary-600">{{
-              u.role
-            }}</span>
-            <span class="text-[9px] font-medium text-gray-400 uppercase truncate w-full">{{
-              u.email.split('@')[0]
-            }}</span>
+            <span class="text-sm font-bold capitalize text-gray-900 group-hover:text-primary-600 dark:text-white">
+              {{ account.role }}
+            </span>
+            <span class="w-full truncate text-[9px] font-medium uppercase text-gray-400">
+              {{ account.email }}
+            </span>
           </button>
         </div>
       </div>
@@ -127,101 +90,75 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { reactive, ref } from 'vue'
 import { useAuthStore } from '@/stores/auth'
+import { useToastStore } from '@/stores/toast'
 import AppInput from '@/components/ui/AppInput.vue'
-import AppButton from '@/components/ui/AppButton.vue'
 import AppCard from '@/components/ui/AppCard.vue'
 
 const auth = useAuthStore()
+const toast = useToastStore()
 
-const step = ref<'credentials' | 'otp'>('credentials')
+const rememberedEmail = localStorage.getItem('remembered_login_email') || 'admin@school.test'
 const form = reactive({
-  email: 'admin@school.com',
-  password: 'admin123',
-  otp: '',
-  otpChannel: 'sms' as 'sms' | 'whatsapp',
+  email: rememberedEmail,
+  password: '',
 })
-const errors = reactive({ email: '', password: '', otp: '' })
-const tick = ref(0)
-
-const countdown = computed(() => {
-  const _ = tick.value
-  return Math.max(0, auth.otpExpiresIn)
+const errors = reactive({
+  email: '',
+  password: '',
 })
+const rememberMe = ref(Boolean(localStorage.getItem('remembered_login_email')))
 
-let timerId: number | null = null
+const roleAccounts = [
+  { role: 'superadmin', email: 'superadmin@platform.test', password: 'test123' },
+  { role: 'admin', email: 'admin@school.test', password: 'test123' },
+  { role: 'accountant', email: 'accountant@school.test', password: 'test123' },
+  { role: 'teacher', email: 'teacher@school.test', password: 'test123' },
+  { role: 'receptionist', email: 'reception@school.test', password: 'test123' },
+  { role: 'student', email: 'student@school.test', password: 'test123' },
+  { role: 'parent', email: 'parent@school.test', password: 'test123' },
+  { role: 'hod', email: 'hod@school.test', password: 'test123' },
+] as const
 
-onMounted(() => {
-  timerId = window.setInterval(() => {
-    tick.value++
-  }, 1000)
-})
-
-onBeforeUnmount(() => {
-  if (timerId !== null) window.clearInterval(timerId)
-})
-
-function useDemoUser(email: string, password: string) {
-  form.email = email
-  form.password = password
+async function handleRoleLogin(account: (typeof roleAccounts)[number]) {
+  form.email = account.email
+  form.password = account.password
+  await submitLogin()
 }
 
-async function handleLogin() {
+async function handleManualLogin() {
+  await submitLogin()
+}
+
+async function submitLogin() {
   errors.email = ''
   errors.password = ''
+  const email = form.email.trim()
+  const password = form.password.trim()
 
-  if (!form.email) {
-    errors.email = 'Email is required'
+  if (!email) {
+    errors.email = 'User ID is required'
     return
   }
-  if (!form.password) {
+  if (!password) {
     errors.password = 'Password is required'
     return
   }
 
-  auth.setOtpChannel(form.otpChannel)
-  const ok = await auth.beginLogin(form.email, form.password, form.otpChannel)
-  if (ok) {
-    step.value = 'otp'
-    form.otp = ''
-  }
-}
+  localStorage.removeItem('dev_tenant_slug')
+  localStorage.removeItem('remembered_login_slug')
 
-async function handleDirectLogin() {
-  errors.email = ''
-  errors.password = ''
-
-  if (!form.email) {
-    errors.email = 'Email is required'
-    return
-  }
-  if (!form.password) {
-    errors.password = 'Password is required'
-    return
+  if (rememberMe.value) {
+    localStorage.setItem('remembered_login_email', email)
+  } else {
+    localStorage.removeItem('remembered_login_email')
   }
 
-  await auth.loginWithPassword(form.email, form.password)
+  await auth.loginWithPassword(email, password)
 }
 
-async function handleVerifyOtp() {
-  errors.otp = ''
-  if (!form.otp || form.otp.length !== 6) {
-    errors.otp = 'Enter 6-digit OTP'
-    return
-  }
-
-  await auth.verifyLoginOtp(form.otp)
-}
-
-async function handleResendOtp() {
-  if (countdown.value > 0) return
-  await auth.resendOtp()
-}
-
-function goBack() {
-  step.value = 'credentials'
-  form.otp = ''
-  auth.clearPendingOtp()
+function showForgotHelp() {
+  toast.info('For test accounts, use password: test123')
 }
 </script>

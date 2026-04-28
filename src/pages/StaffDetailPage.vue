@@ -265,7 +265,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useStaffStore } from '@/stores/staff'
 import { useAttendanceStore } from '@/stores/attendance'
@@ -315,6 +315,10 @@ const staffAssignments = computed(() =>
 )
 const staffNotices = computed(() => noticeStore.notices.filter((n) => n.created_by === staff.value?.name))
 const staffTasks = computed(() => taskStore.tasks.filter((t) => t.staff_id === staffId.value))
+
+onMounted(() => {
+  void taskStore.fetchTasks({ staff_id: staffId.value })
+})
 
 const reliabilityRate = computed(() => {
   if (!staffAttendance.value.length) return 0

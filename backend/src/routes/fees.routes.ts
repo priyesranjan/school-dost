@@ -2,8 +2,15 @@ import { Router } from 'express'
 import { requireAuth, requireRole } from '../middleware/auth'
 import { writeActionLimiter } from '../middleware/rateLimit'
 import { validateBody } from '../middleware/validation'
-import { feeStructureCreateSchema, feePaymentCreateSchema } from '../validation/schemas'
-import { createFeePayment, createFeeStructure, listFeePayments, listFeeStructures } from '../services/feesService'
+import { feeStructureCreateSchema, feePaymentCreateSchema, feePaymentCollectSchema } from '../validation/schemas'
+import {
+  collectFeePayment,
+  createFeePayment,
+  createFeeStructure,
+  getFeePayment,
+  listFeePayments,
+  listFeeStructures,
+} from '../services/feesService'
 import { appendAuditLog } from '../services/auditLogService'
 import { dispatchWebhookEvent } from '../services/webhookService'
 
@@ -22,8 +29,10 @@ function queueWebhook(task: unknown) {
 }
 
 const router = Router()
+const feeManagerRoles = ['admin', 'accountant'] as const
+const feeCollectionRoles = ['admin', 'accountant', 'receptionist'] as const
 
-router.get('/structures', requireAuth, async (req, res) => {
+router.get('/structures', requireAuth, requireRole(['admin', 'accountant', 'receptionist']), async (req, res) => {
   try {
     const data = await listFeeStructures(req.tenantDb!, {
       page: parsePage(req.query.page, 1),
@@ -41,7 +50,7 @@ router.get('/structures', requireAuth, async (req, res) => {
 router.post(
   '/structures',
   requireAuth,
-  requireRole(['admin', 'accountant']),
+  requireRole([...feeManagerRoles]),
   writeActionLimiter,
   validateBody(feeStructureCreateSchema),
   async (req, res) => {
@@ -76,7 +85,7 @@ router.post(
   },
 )
 
-router.get('/payments', requireAuth, async (req, res) => {
+router.get('/payments', requireAuth, requireRole(['admin', 'accountant', 'receptionist']), async (req, res) => {
   try {
     const data = await listFeePayments(req.tenantDb!, {
       page: parsePage(req.query.page, 1),
@@ -91,10 +100,41 @@ router.get('/payments', requireAuth, async (req, res) => {
   }
 })
 
+router.get('/due', requireAuth, requireRole(['admin', 'accountant', 'receptionist']), async (req, res) => {
+  try {
+    const partial = await listFeePayments(req.tenantDb!, {
+      page: 1,
+      per_page: parsePerPage(req.query.per_page, 100),
+      status: 'partial',
+    })
+    const unpaid = await listFeePayments(req.tenantDb!, {
+      page: 1,
+      per_page: parsePerPage(req.query.per_page, 100),
+      status: 'unpaid',
+    })
+    const items = [...partial.items, ...unpaid.items].sort((a, b) => b.due_amount - a.due_amount)
+    res.json({ data: { items, total: items.length, page: 1, per_page: items.length || 100 } })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to list dues'
+    res.status(500).json({ error: { code: 'FEE_DUE_LIST_FAILED', message } })
+  }
+})
+
+router.get('/payments/:id/receipt', requireAuth, requireRole(['admin', 'accountant', 'receptionist']), async (req, res) => {
+  try {
+    const data = await getFeePayment(req.tenantDb!, Number(req.params.id))
+    if (!data) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Fee payment not found' } })
+    res.json({ data })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to load receipt'
+    res.status(500).json({ error: { code: 'FEE_RECEIPT_FAILED', message } })
+  }
+})
+
 router.post(
   '/payments',
   requireAuth,
-  requireRole(['admin', 'accountant']),
+  requireRole([...feeCollectionRoles]),
   writeActionLimiter,
   validateBody(feePaymentCreateSchema),
   async (req, res) => {
@@ -138,6 +178,42 @@ router.post(
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to record fee payment'
       res.status(500).json({ error: { code: 'FEE_PAYMENT_CREATE_FAILED', message } })
+    }
+  },
+)
+
+router.patch(
+  '/payments/:id/collect',
+  requireAuth,
+  requireRole([...feeCollectionRoles]),
+  writeActionLimiter,
+  validateBody(feePaymentCollectSchema),
+  async (req, res) => {
+    try {
+      const data = await collectFeePayment(req.tenantDb!, Number(req.params.id), req.body)
+      await appendAuditLog(req.tenantDb!, {
+        action: 'fee_payment_collected',
+        module: 'fees',
+        actor_name: req.auth?.name || 'Unknown',
+        actor_role: req.auth?.role || 'unknown',
+        target: data.receipt_number || `payment-${data.id}`,
+        metadata: `student_id=${data.student_id} amount=${req.body.amount} due=${data.due_amount}`,
+      })
+      queueWebhook(dispatchWebhookEvent(req.tenantDb!, {
+        type: 'fees.payment.recorded',
+        tenant_slug: req.tenant?.slug || req.tenantSlug || req.auth?.tenantSlug || null,
+        data: {
+          payment: data,
+          actor: {
+            name: req.auth?.name || 'Unknown',
+            role: req.auth?.role || 'unknown',
+          },
+        },
+      }))
+      res.json({ data })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to collect payment'
+      res.status(500).json({ error: { code: 'FEE_PAYMENT_COLLECT_FAILED', message } })
     }
   },
 )

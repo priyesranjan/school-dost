@@ -14,7 +14,7 @@ export type Role = 'superadmin' | 'admin' | 'accountant' | 'teacher' | 'receptio
  */
 export const rolePermissions: Record<Role, string[]> = {
   // ─── Platform Operator ─────────────────────────────────────
-  superadmin: ['superadmin-dashboard', 'institutions', 'onboarding', 'platform-settings'],
+  superadmin: ['superadmin-dashboard', 'institutions', 'onboarding', 'tenant-detail', 'platform-settings'],
 
   // ─── Full Institution Access ───────────────────────────────
   admin: [
@@ -70,6 +70,7 @@ export const rolePermissions: Record<Role, string[]> = {
     'exams',
     'calendar',
     'reports',
+    'sms',
     'profile',
     'timetable',
     'notices',
@@ -91,6 +92,7 @@ export const rolePermissions: Record<Role, string[]> = {
     'exams',
     'calendar',
     'profile',
+    'sms',
     'timetable',
     'notices',
     'parent-communication',

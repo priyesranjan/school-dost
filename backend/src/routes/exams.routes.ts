@@ -18,7 +18,7 @@ function parsePerPage(v: unknown, fb: number) {
 
 const router = Router()
 
-router.get('/', requireAuth, async (req, res) => {
+router.get('/', requireAuth, requireRole(['admin', 'hod', 'teacher', 'parent', 'student']), async (req, res) => {
   try {
     const data = await listExams(req.tenantDb!, {
       page: parsePage(req.query.page, 1),
@@ -95,7 +95,7 @@ router.delete('/:id', requireAuth, requireRole(['admin']), writeActionLimiter, a
   }
 })
 
-router.get('/:id/results', requireAuth, async (req, res) => {
+router.get('/:id/results', requireAuth, requireRole(['admin', 'hod', 'teacher', 'parent', 'student']), async (req, res) => {
   const id = Number(req.params.id)
   if (!Number.isFinite(id) || id <= 0) {
     res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'Invalid exam id' } })

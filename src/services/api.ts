@@ -1,6 +1,7 @@
 import axios from 'axios'
 import router from '@/router'
 import type { InternalAxiosRequestConfig } from 'axios'
+import { getOfflineMode } from '@/utils/runtimeConfig'
 
 const configuredBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim()
 
@@ -13,6 +14,9 @@ const api = axios.create({
 })
 
 api.interceptors.request.use((config) => {
+  if (getOfflineMode()) {
+    return Promise.reject(new axios.AxiosError('Offline mode is enabled. Live API calls are disabled.', 'ERR_OFFLINE_MODE', config))
+  }
   const token = localStorage.getItem('auth_token')
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
@@ -38,11 +42,16 @@ type ApiRequestConfig = InternalAxiosRequestConfig & {
 }
 
 async function tryRefreshToken(): Promise<string | null> {
-  const refreshToken = localStorage.getItem('refresh_token')
-  if (!refreshToken) return null
-  try {
-    const refreshUrl = configuredBaseUrl ? `${configuredBaseUrl.replace(/\/$/, '')}/auth/refresh` : '/api/auth/refresh'
-    const res = await axios.post(refreshUrl, { refresh_token: refreshToken })
+    const refreshToken = localStorage.getItem('refresh_token')
+    if (!refreshToken) return null
+    try {
+      const refreshUrl = configuredBaseUrl ? `${configuredBaseUrl.replace(/\/$/, '')}/auth/refresh` : '/api/auth/refresh'
+    const tenantSlug = localStorage.getItem('dev_tenant_slug') || ''
+    const res = await axios.post(
+      refreshUrl,
+      { refresh_token: refreshToken },
+      tenantSlug ? { headers: { 'X-Tenant-Slug': tenantSlug } } : undefined,
+    )
     const { access_token, refresh_token: newRefresh } = res.data?.data || {}
     if (!access_token) return null
     localStorage.setItem('auth_token', access_token)
@@ -57,6 +66,9 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = (error.config || {}) as ApiRequestConfig
+    if (error.code === 'ERR_OFFLINE_MODE') {
+      return Promise.reject(error)
+    }
     if (error.response?.status === 401 && originalRequest.skipAuthRefresh) {
       return Promise.reject(error)
     }

@@ -426,14 +426,14 @@ function collectPayment(row: FeePayment) {
   showCollectModal.value = true
 }
 
-function confirmCollect() {
+async function confirmCollect() {
   if (!collectTarget.value) return
   const amount = Math.min(collectAmount.value, collectTarget.value.due_amount)
   if (amount <= 0) {
     toast.error('Invalid amount')
     return
   }
-  feeStore.collectPayment(collectTarget.value.id, amount, collectMethod.value)
+  await feeStore.collectPayment(collectTarget.value.id, amount, collectMethod.value)
   toast.success(`₹${amount.toLocaleString()} collected from ${collectTarget.value.student_name}`)
   showCollectModal.value = false
 }

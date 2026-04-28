@@ -569,7 +569,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import type { FeePayment } from '@/types'
 import { useFeeStore } from '@/stores/fees'
 import { useStudentStore } from '@/stores/students'
@@ -591,6 +591,10 @@ const studentStore = useStudentStore()
 const toast = useToastStore()
 const smsStore = useSmsStore()
 const settingsStore = useSettingsStore()
+
+onMounted(() => {
+  void feeStore.fetchFees()
+})
 
 const activeTab = ref('payments')
 const isPrinting = ref(false)
@@ -617,7 +621,7 @@ function selectPaymentForCollection(payment: FeePayment) {
   collectForm.amount = String(payment.due_amount)
 }
 
-function handleCollect() {
+async function handleCollect() {
   collectErrors.student = ''
   collectErrors.amount = ''
 
@@ -635,7 +639,7 @@ function handleCollect() {
     return
   }
 
-  feeStore.collectPayment(selectedPayment.value.id, amt, collectForm.method)
+  await feeStore.collectPayment(selectedPayment.value.id, amt, collectForm.method)
 
   if (settingsStore.settings.auto_sms_on_payment && selectedPayment.value) {
     const student = studentStore.students.find((s) => s.id === selectedPayment.value!.student_id)
@@ -669,7 +673,7 @@ function openQuickPay(payment: FeePayment) {
   showQuickPayModal.value = true
 }
 
-function handleQuickPay() {
+async function handleQuickPay() {
   if (!quickPayTarget.value) return
   const amt = Number(quickPayAmount.value)
   if (!amt || amt <= 0) {
@@ -681,7 +685,7 @@ function handleQuickPay() {
     return
   }
 
-  feeStore.collectPayment(quickPayTarget.value.id, amt, quickPayMethod.value)
+  await feeStore.collectPayment(quickPayTarget.value.id, amt, quickPayMethod.value)
 
   if (settingsStore.settings.auto_sms_on_payment) {
     const student = studentStore.students.find((s) => s.id === quickPayTarget.value!.student_id)
@@ -702,12 +706,12 @@ function handleQuickPay() {
 
 const showStructureModal = ref(false)
 const structureForm = reactive({ name: '', class_name: '', amount: '', due_date: '', academic_year: '2025-26' })
-function handleAddStructure() {
+async function handleAddStructure() {
   if (!structureForm.name || !structureForm.class_name || !structureForm.amount) {
     toast.warning('Fields required')
     return
   }
-  feeStore.addStructure({
+  await feeStore.addStructure({
     name: structureForm.name,
     class_name: structureForm.class_name,
     amount: Number(structureForm.amount),

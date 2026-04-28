@@ -1127,7 +1127,8 @@ function syncToTenantProfile(payload: typeof form) {
   saveToStorage(`institution_${tenant.id}`, normalized)
 }
 
-onMounted(() => {
+onMounted(async () => {
+  await institution.fetchProfile()
   Object.assign(form, institution.profile)
 
   const tenant = getCurrentTenant()
@@ -1164,12 +1165,12 @@ const websiteThemes = [
   },
 ]
 
-function saveProfile() {
+async function saveProfile() {
   isSaving.value = true
   form.website_gallery_images = parseImageList(form.website_gallery_images)
   form.website_feature_images = parseImageList(form.website_feature_images)
   ensureWebsiteCollections()
-  institution.updateProfile({ ...form })
+  await institution.updateProfile({ ...form })
   syncToTenantProfile(form)
   savedSnapshot = JSON.stringify({ ...form })
   isSaving.value = false
@@ -1252,8 +1253,8 @@ function resetArticleItems() {
   toast.success('Articles reset')
 }
 
-function togglePublicWebsite() {
-  institution.togglePublicWebsite()
+async function togglePublicWebsite() {
+  await institution.togglePublicWebsite()
   form.public_website_enabled = institution.profile.public_website_enabled
   syncToTenantProfile(form)
 }

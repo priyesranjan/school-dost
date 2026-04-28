@@ -29,20 +29,25 @@ import { env } from '../config/env'
 // We keep one PrismaClient per tenant DB alive — expensive to create each request
 const clientCache = new Map<string, PrismaClient>()
 
-function getTenantPrismaClient(dbName: string, dbHost: string, dbPort: number): PrismaClient {
+function buildTenantUrl(schemaName: string, dbHost: string, dbPort: number): string {
+  const base = new URL(env.platformDatabaseUrl || env.databaseUrl)
+  base.username = env.tenantDbUser
+  base.password = env.tenantDbPass
+  base.hostname = dbHost
+  base.port = String(dbPort)
+  base.searchParams.set('schema', schemaName)
+  return base.toString()
+}
+
+export function getTenantPrismaClient(dbName: string, dbHost: string, dbPort: number): PrismaClient {
   const cacheKey = `${dbHost}:${dbPort}/${dbName}`
 
   if (clientCache.has(cacheKey)) {
     return clientCache.get(cacheKey)!
   }
 
-  const dbUser = env.tenantDbUser
-  const dbPass = env.tenantDbPass
-
-  const url = `postgresql://${dbUser}:${encodeURIComponent(dbPass)}@${dbHost}:${dbPort}/${dbName}?schema=public`
-
   const client = new PrismaClient({
-    datasources: { db: { url } },
+    datasources: { db: { url: buildTenantUrl(dbName, dbHost, dbPort) } },
   })
 
   clientCache.set(cacheKey, client)
@@ -185,6 +190,15 @@ export function requireSchoolContext(req: Request, res: Response, next: NextFunc
       error: {
         code: 'TENANT_CONTEXT_REQUIRED',
         message: 'Tenant context (slug) is required for this school-specific endpoint.',
+      },
+    })
+    return
+  }
+  if (!req.tenant?.dbName || req.tenant.dbName === 'public') {
+    res.status(500).json({
+      error: {
+        code: 'UNSAFE_TENANT_STORAGE',
+        message: 'This institution is not configured with isolated storage.',
       },
     })
     return

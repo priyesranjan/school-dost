@@ -360,10 +360,69 @@ model StaffMember {
   payrollRecords PayrollRecord[]
   leaveRequests  LeaveRequest[]
   appraisals     StaffAppraisal[]
+  tasks          StaffTask[]
 
   @@index([role])
   @@index([department])
   @@index([status])
+}
+
+model SchoolClass {
+  id            BigInt   @id @default(autoincrement())
+  name          String
+  grade         Int
+  classTeacher  String?
+  academicYear  String
+  room          String?
+  color         String   @default("slate")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  sections ClassSection[]
+
+  @@unique([name, academicYear])
+  @@index([grade])
+  @@index([academicYear])
+}
+
+model ClassSection {
+  id        BigInt      @id @default(autoincrement())
+  classId   BigInt
+  name      String
+  capacity  Int         @default(40)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  class SchoolClass @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  @@unique([classId, name])
+  @@index([classId])
+}
+
+model InstitutionProfile {
+  id        Int      @id @default(1)
+  data      Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model StaffTask {
+  id          BigInt   @id @default(autoincrement())
+  staffId     BigInt
+  title       String
+  description String?  @db.Text
+  priority    String
+  status      String   @default("pending")
+  dueDate     DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  staffMember StaffMember @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@index([staffId])
+  @@index([status])
+  @@index([priority])
+  @@index([dueDate])
 }
 
 model SecurityPolicy {

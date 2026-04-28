@@ -190,4 +190,8 @@ export const superadminService = {
   async activateTenant(id: string): Promise<void> {
     await api.post(`/superadmin/tenants/${id}/activate`)
   },
+
+  async deleteTenant(id: string): Promise<void> {
+    await api.delete(`/superadmin/tenants/${id}`)
+  },
 }

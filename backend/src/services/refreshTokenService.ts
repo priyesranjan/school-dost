@@ -94,6 +94,7 @@ export async function rotateRefreshToken(db: PrismaClient, refreshToken: string,
     role: decoded.role,
     email: decoded.email,
     tenantSlug: decoded.tenantSlug,
+    tenantId: decoded.tenantId,
     isRoot: Boolean(decoded.isRoot),
   }
 

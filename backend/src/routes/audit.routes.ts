@@ -18,7 +18,7 @@ function parsePerPage(value: unknown, fallback: number) {
 
 const router = Router()
 
-router.get('/logs', requireAuth, async (req, res) => {
+router.get('/logs', requireAuth, requireRole(['superadmin', 'admin']), async (req, res) => {
   try {
     const data = await listAuditLogs(req.tenantDb!, {
       page: parsePage(req.query.page, 1),

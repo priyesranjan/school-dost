@@ -18,7 +18,7 @@ function parsePerPage(value: unknown, fallback: number) {
 
 const router = Router()
 
-router.get('/', requireAuth, async (req, res) => {
+router.get('/', requireAuth, requireRole(['superadmin', 'admin', 'hod', 'teacher', 'receptionist', 'parent', 'student']), async (req, res) => {
   try {
     const data = await listNotices(req.tenantDb!, {
       page: parsePage(req.query.page, 1),
@@ -39,7 +39,7 @@ router.get('/', requireAuth, async (req, res) => {
 router.post(
   '/',
   requireAuth,
-  requireRole(['admin', 'teacher']),
+  requireRole(['admin', 'teacher', 'hod', 'receptionist']),
   writeActionLimiter,
   validateBody(noticeCreateSchema),
   async (req, res) => {

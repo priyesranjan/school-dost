@@ -207,16 +207,91 @@
         >
       </div>
     </div>
+
+    <div
+      v-if="showRuleModal"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+      @click.self="showRuleModal = false"
+    >
+      <div class="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl dark:bg-gray-800">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <h2 class="text-lg font-black text-gray-900 dark:text-white">New Alert Rule</h2>
+            <p class="mt-1 text-xs text-gray-400">Create a dashboard rule that can be tuned and toggled with the rest.</p>
+          </div>
+          <button class="rounded-lg px-2 py-1 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700" @click="showRuleModal = false">
+            x
+          </button>
+        </div>
+        <form class="mt-5 space-y-4" @submit.prevent="saveCustomRule">
+          <div>
+            <label class="text-[10px] font-black uppercase tracking-widest text-gray-400">Rule Name</label>
+            <input
+              v-model="customRule.name"
+              class="mt-1 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-bold outline-none focus:border-primary-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+              placeholder="Transport route exception"
+              required
+            />
+          </div>
+          <div>
+            <label class="text-[10px] font-black uppercase tracking-widest text-gray-400">Category</label>
+            <input
+              v-model="customRule.category"
+              class="mt-1 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-bold outline-none focus:border-primary-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+              placeholder="Operations"
+              required
+            />
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="text-[10px] font-black uppercase tracking-widest text-gray-400">Threshold</label>
+              <input
+                v-model.number="customRule.threshold"
+                type="number"
+                min="1"
+                class="mt-1 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-bold outline-none focus:border-primary-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+              />
+            </div>
+            <div>
+              <label class="text-[10px] font-black uppercase tracking-widest text-gray-400">Unit</label>
+              <input
+                v-model="customRule.unit"
+                class="mt-1 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-bold outline-none focus:border-primary-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                placeholder="events"
+              />
+            </div>
+          </div>
+          <div>
+            <label class="text-[10px] font-black uppercase tracking-widest text-gray-400">Description</label>
+            <textarea
+              v-model="customRule.description"
+              rows="3"
+              class="mt-1 w-full resize-none rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium outline-none focus:border-primary-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+              placeholder="Describe when operators should review this condition."
+            ></textarea>
+          </div>
+          <div class="flex justify-end gap-3">
+            <button type="button" class="rounded-xl bg-gray-100 px-4 py-2 text-sm font-black text-gray-600 dark:bg-gray-700 dark:text-gray-200" @click="showRuleModal = false">
+              Cancel
+            </button>
+            <button type="submit" class="rounded-xl bg-primary-600 px-4 py-2 text-sm font-black text-white hover:bg-primary-700">
+              Save Rule
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, reactive } from 'vue'
+import { ref, computed, reactive, watch } from 'vue'
 import { useStudentStore } from '@/stores/students'
 import { useFeeStore } from '@/stores/fees'
 import { useAttendanceStore } from '@/stores/attendance'
 import { useExamStore } from '@/stores/exams'
 import { useToastStore } from '@/stores/toast'
+import { loadFromStorage, saveToStorage } from '@/utils/storage'
 
 const studentStore = useStudentStore()
 const feeStore = useFeeStore()
@@ -228,8 +303,33 @@ const activeFilter = ref('all')
 const acknowledgedCount = ref(0)
 const snoozedIds = ref(new Set<number>())
 
+interface AlertRule {
+  id: number
+  name: string
+  description: string
+  icon: string
+  iconBg: string
+  enabled: boolean
+  threshold: number
+  thresholdMin: number
+  thresholdMax: number
+  unit: string
+  custom?: boolean
+  category?: string
+}
+
+const savedCustomRules = loadFromStorage<AlertRule[]>('custom_alert_rules') || []
+const showRuleModal = ref(false)
+const customRule = reactive({
+  name: '',
+  category: '',
+  threshold: 1,
+  unit: 'events',
+  description: '',
+})
+
 // ---- Alert Rules ----
-const alertRules = reactive([
+const alertRules = reactive<AlertRule[]>([
   {
     id: 1,
     name: 'Low Attendance Alert',
@@ -302,6 +402,7 @@ const alertRules = reactive([
     thresholdMax: 1,
     unit: '',
   },
+  ...savedCustomRules,
 ])
 
 // ---- Auto-generated alerts from live data ----
@@ -448,8 +549,55 @@ function snooze(id: number) {
 }
 
 function addCustomAlert() {
-  toast.success('Custom alert rule builder coming soon!')
+  Object.assign(customRule, {
+    name: '',
+    category: '',
+    threshold: 1,
+    unit: 'events',
+    description: '',
+  })
+  showRuleModal.value = true
 }
+
+function saveCustomRule() {
+  if (!customRule.name.trim() || !customRule.category.trim()) {
+    toast.warning('Rule name and category are required')
+    return
+  }
+  alertRules.push({
+    id: Date.now(),
+    name: customRule.name.trim(),
+    description: customRule.description.trim() || `Manual monitoring rule for ${customRule.category.trim()}.`,
+    icon: '⚙',
+    iconBg: 'bg-slate-100 dark:bg-slate-900/30',
+    enabled: true,
+    threshold: customRule.threshold || 1,
+    thresholdMin: 1,
+    thresholdMax: 999,
+    unit: customRule.unit.trim(),
+    custom: true,
+    category: customRule.category.trim(),
+  })
+  saveToStorage(
+    'custom_alert_rules',
+    alertRules.filter((rule) => rule.custom),
+  )
+  alerts.value = buildAlerts()
+  showRuleModal.value = false
+  toast.success('Alert rule created')
+}
+
+watch(
+  alertRules,
+  () => {
+    saveToStorage(
+      'custom_alert_rules',
+      alertRules.filter((rule) => rule.custom),
+    )
+    alerts.value = buildAlerts()
+  },
+  { deep: true },
+)
 
 // ---- History bars ---- (demo data)
 const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']

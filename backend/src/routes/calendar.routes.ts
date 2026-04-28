@@ -18,7 +18,7 @@ function parsePerPage(v: unknown, fb: number) {
 
 const router = Router()
 
-router.get('/', requireAuth, async (req, res) => {
+router.get('/', requireAuth, requireRole(['superadmin', 'admin', 'hod', 'teacher', 'receptionist', 'parent', 'student']), async (req, res) => {
   try {
     const data = await listCalendarEvents(req.tenantDb!, {
       page: parsePage(req.query.page, 1),

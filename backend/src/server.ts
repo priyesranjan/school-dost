@@ -15,6 +15,7 @@ import backupRoutes from './routes/backup.routes'
 import maintenanceRoutes from './routes/maintenance.routes'
 import feesRoutes from './routes/fees.routes'
 import attendanceRoutes from './routes/attendance.routes'
+import classesRoutes from './routes/classes.routes'
 import certificatesRoutes from './routes/certificates.routes'
 import noticesRoutes from './routes/notices.routes'
 import timetableRoutes from './routes/timetable.routes'
@@ -30,10 +31,12 @@ import accountingRoutes from './routes/accounting.routes'
 import payrollRoutes from './routes/payroll.routes'
 import hrRoutes from './routes/hr.routes'
 import inventoryRoutes from './routes/inventory.routes'
+import institutionRoutes from './routes/institution.routes'
 import webhooksRoutes from './routes/webhooks.routes'
 import securityRoutes from './routes/security.routes'
 import superadminRoutes from './routes/superadmin.routes'
 import superadminTeamRoutes from './routes/superadminTeam.routes'
+import tasksRoutes from './routes/tasks.routes'
 import { resolveTenant, requireSchoolContext, requireAnyContext } from './middleware/tenantResolver'
 
 const app = express()
@@ -117,6 +120,7 @@ app.use('/api/backups', backupRoutes)
 app.use('/api/maintenance', requireSchoolContext, maintenanceRoutes)
 app.use('/api/fees', requireSchoolContext, feesRoutes)
 app.use('/api/attendance', requireSchoolContext, attendanceRoutes)
+app.use('/api/classes', requireSchoolContext, classesRoutes)
 app.use('/api/certificates', requireSchoolContext, certificatesRoutes)
 app.use('/api/notices', requireSchoolContext, noticesRoutes)
 app.use('/api/timetable', requireSchoolContext, timetableRoutes)
@@ -132,8 +136,10 @@ app.use('/api/accounting', requireSchoolContext, accountingRoutes)
 app.use('/api/payroll', requireSchoolContext, payrollRoutes)
 app.use('/api/hr', requireSchoolContext, hrRoutes)
 app.use('/api/inventory', requireSchoolContext, inventoryRoutes)
+app.use('/api/institution', requireSchoolContext, institutionRoutes)
 app.use('/api/webhooks', requireSchoolContext, webhooksRoutes)
 app.use('/api/security', requireSchoolContext, securityRoutes)
+app.use('/api/tasks', requireSchoolContext, tasksRoutes)
 // ── Platform-level SuperAdmin Routes (no tenant context) ─────────────────────
 app.use('/api/superadmin', superadminRoutes)
 app.use('/api/superadmin/team', superadminTeamRoutes)

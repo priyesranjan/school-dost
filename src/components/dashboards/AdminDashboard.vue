@@ -3,11 +3,11 @@
     <!-- Welcome Header -->
     <div class="mb-6">
       <h1 class="text-2xl font-bold text-gray-900 dark:text-white">
-        Welcome back, <span class="text-primary-600 dark:text-primary-400">{{ authStore.user?.name || 'Admin' }}</span
+        Welcome back, <span class="text-primary-600 dark:text-primary-400">{{ authStore.user?.name || 'Principal' }}</span
         >!
       </h1>
       <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-        {{ currentDate }} &middot; Here's the school overview.
+        {{ currentDate }} &middot; Here's the principal overview of the school.
       </p>
     </div>
 

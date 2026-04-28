@@ -30,8 +30,9 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import type { Certificate } from '@/types'
+import type { CertificateVerificationResult } from '@/services/certificateService'
 import { useCertificateStore } from '@/stores/certificates'
+import { certificateService } from '@/services/certificateService'
 import AppCard from '@/components/ui/AppCard.vue'
 import AppInput from '@/components/ui/AppInput.vue'
 import AppButton from '@/components/ui/AppButton.vue'
@@ -40,20 +41,26 @@ const route = useRoute()
 const certificateStore = useCertificateStore()
 
 const certificateNo = ref('')
-const result = ref<Certificate | null>(null)
+const result = ref<CertificateVerificationResult | null>(null)
 const searched = ref(false)
 
-function handleVerify() {
+async function handleVerify() {
   searched.value = true
   const no = certificateNo.value.trim().toUpperCase()
-  result.value = certificateStore.certificates.find((c) => c.certificate_no.toUpperCase() === no) || null
+  try {
+    const data = await certificateService.verify(no)
+    result.value = data.valid ? data : null
+  } catch {
+    const local = certificateStore.certificates.find((c) => c.certificate_no.toUpperCase() === no)
+    result.value = local ? { ...local, valid: true } : null
+  }
 }
 
 onMounted(() => {
   const no = String(route.query.no || '')
   if (no) {
     certificateNo.value = no
-    handleVerify()
+    void handleVerify()
   }
 })
 </script>

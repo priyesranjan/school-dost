@@ -18,12 +18,19 @@ import {
   provisionTenant,
   suspendTenant,
   activateTenant,
+  deleteTenant,
   listTenants,
   sanitiseSlug,
 } from '../services/tenantProvisioningService'
 import { getPlatformPrisma } from '../db/platformPool'
 
 const router = Router()
+
+function toJsonSafe<T>(value: T): T {
+  return JSON.parse(
+    JSON.stringify(value, (_key, item) => (typeof item === 'bigint' ? item.toString() : item)),
+  )
+}
 
 // All superadmin routes require auth context first, THEN superadmin role
 router.use(requireAuth)
@@ -85,7 +92,9 @@ router.get('/tenants/:id', async (req, res) => {
       return
     }
 
-    res.json({ data: tenant })
+    res.type('application/json').send(
+      JSON.stringify({ data: tenant }, (_key, item) => (typeof item === 'bigint' ? item.toString() : item)),
+    )
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to get tenant'
     res.status(500).json({ error: { code: 'GET_FAILED', message } })
@@ -167,6 +176,18 @@ router.post('/tenants/:id/activate', async (req, res) => {
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to activate tenant'
     res.status(500).json({ error: { code: 'ACTIVATE_FAILED', message } })
+  }
+})
+
+// DELETE /api/superadmin/tenants/:id
+router.delete('/tenants/:id', async (req, res) => {
+  try {
+    await deleteTenant(req.params.id, req.auth?.email || 'superadmin')
+    res.json({ data: { success: true } })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Failed to delete tenant'
+    const status = message === 'Tenant not found' ? 404 : 500
+    res.status(status).json({ error: { code: 'DELETE_FAILED', message } })
   }
 })
 

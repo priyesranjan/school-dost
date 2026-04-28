@@ -203,6 +203,7 @@ export interface FeeStructure {
 export interface FeePayment {
   id: number
   student_id: number
+  fee_structure_id?: number | null
   student_name: string
   class_name: string
   fee_name: string
@@ -437,6 +438,7 @@ export interface SchoolSettings {
   academic_year: string
   institution_code: string
   brand_color: string
+  offline_mode: boolean
   sms_enabled: boolean
   sms_api_key: string
   sms_sender_id: string

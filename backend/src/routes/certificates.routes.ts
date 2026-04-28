@@ -3,10 +3,21 @@ import { requireAuth, requireRole } from '../middleware/auth'
 import { writeActionLimiter } from '../middleware/rateLimit'
 import { validateBody } from '../middleware/validation'
 import { certificateIssueSchema } from '../validation/schemas'
-import { issueCertificate, verifyCertificateByNumber } from '../services/certificateService'
+import { issueCertificate, listCertificates, verifyCertificateByNumber } from '../services/certificateService'
 import { appendAuditLog } from '../services/auditLogService'
 
 const router = Router()
+
+function parsePage(value: unknown, fallback: number) {
+  const n = Number(value)
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback
+}
+
+function parsePerPage(value: unknown, fallback: number) {
+  const n = Number(value)
+  if (!Number.isFinite(n) || n <= 0) return fallback
+  return Math.min(100, Math.floor(n))
+}
 
 router.get('/verify', async (req, res) => {
   const certNo = String(req.query.no || '').trim()
@@ -25,10 +36,25 @@ router.get('/verify', async (req, res) => {
   }
 })
 
+router.get('/', requireAuth, requireRole(['admin', 'receptionist']), async (req, res) => {
+  try {
+    const data = await listCertificates(req.tenantDb!, {
+      page: parsePage(req.query.page, 1),
+      per_page: parsePerPage(req.query.per_page, 100),
+      student_id: req.query.student_id ? Number(req.query.student_id) : undefined,
+      type: req.query.type ? (String(req.query.type) as 'tc' | 'character') : undefined,
+    })
+    res.json({ data })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to list certificates'
+    res.status(500).json({ error: { code: 'CERT_LIST_FAILED', message } })
+  }
+})
+
 router.post(
   '/issue',
   requireAuth,
-  requireRole(['admin']),
+  requireRole(['admin', 'receptionist']),
   writeActionLimiter,
   validateBody(certificateIssueSchema),
   async (req, res) => {

@@ -136,6 +136,13 @@
                   class="rounded-lg px-3 py-1 text-[10px] font-bold text-blue-400 border border-blue-500/20 hover:bg-blue-500/10 transition-colors"
                   >View Site</a
                 >
+                <button
+                  @click="handleDelete(t.id)"
+                  :disabled="actionTenantId === t.id"
+                  class="rounded-lg px-3 py-1 text-[10px] font-bold text-rose-300 border border-rose-500/20 hover:bg-rose-500/10 transition-colors disabled:opacity-50"
+                >
+                  Delete
+                </button>
               </div>
             </td>
           </tr>
@@ -202,6 +209,23 @@ async function handleActivate(id: string) {
     toast.success(`${tenant?.name || 'Institution'} has been activated`)
   } catch (error) {
     toast.error(extractApiErrorMessage(error, 'Failed to activate institution.'))
+  } finally {
+    actionTenantId.value = ''
+  }
+}
+
+async function handleDelete(id: string) {
+  const tenant = tenantsStore.tenants.find((item) => item.id === id)
+  const name = tenant?.name || 'this institution'
+  const confirmed = window.confirm(`Delete ${name}? This removes it from the superadmin institution list.`)
+  if (!confirmed) return
+
+  actionTenantId.value = id
+  try {
+    await tenantsStore.deleteTenant(id)
+    toast.success(`${name} has been deleted`)
+  } catch (error) {
+    toast.error(extractApiErrorMessage(error, 'Failed to delete institution.'))
   } finally {
     actionTenantId.value = ''
   }

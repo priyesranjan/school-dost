@@ -15,10 +15,20 @@ export const feeService = {
   },
 
   collectPayment(data: {
-    student_id: number
-    fee_structure_id: number
     amount: number
     payment_method: string
+    payment_date?: string | null
+  }, paymentId: number): Promise<ApiResponse<FeePayment>> {
+    return api.patch(`/fees/payments/${paymentId}/collect`, data).then((r) => r.data)
+  },
+
+  assignFee(data: {
+    student_id: number
+    fee_structure_id: number
+    total_amount: number
+    paid_amount: number
+    payment_method?: string | null
+    payment_date?: string | null
   }): Promise<ApiResponse<FeePayment>> {
     return api.post('/fees/payments', data).then((r) => r.data)
   },

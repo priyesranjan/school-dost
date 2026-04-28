@@ -18,7 +18,7 @@ function parsePerPage(value: unknown, fallback: number) {
 
 const router = Router()
 
-router.get('/', requireAuth, async (req, res) => {
+router.get('/', requireAuth, requireRole(['admin', 'teacher', 'hod', 'receptionist', 'parent', 'student']), async (req, res) => {
   try {
     const data = await listAttendance(req.tenantDb!, {
       page: parsePage(req.query.page, 1),

@@ -129,7 +129,7 @@ const currentDate = new Date().toLocaleDateString('en-US', {
 const hodActions = [
   { label: 'Academic Reports', desc: 'Faculty Performance', path: '/reports', icon: '📊', bg: 'bg-amber-100 text-amber-600' },
   { label: 'Dept Timetable', desc: 'Staff Schedule', path: '/timetable', icon: '📅', bg: 'bg-blue-100 text-blue-600' },
-  { label: 'Leave Requests', desc: '14 Pending', path: '/settings', icon: '📝', bg: 'bg-purple-100 text-purple-600' },
+  { label: 'Leave Requests', desc: '14 Pending', path: '/hr-operations', icon: '📝', bg: 'bg-purple-100 text-purple-600' },
   { label: 'Dept Notices', desc: 'Internal Updates', path: '/notices', icon: '🔊', bg: 'bg-green-100 text-green-600' },
 ]
 </script>

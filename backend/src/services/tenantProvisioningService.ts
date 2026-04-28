@@ -68,13 +68,26 @@ function slugToDbName(slug: string): string {
   return 'tenant_' + slug.replace(/-/g, '_').slice(0, 50)
 }
 
-function createPrismaClientForTenant(dbName: string): PrismaClient {
-  const dbUser = env.tenantDbUser
-  const dbPass = env.tenantDbPass
-  const url = `postgresql://${dbUser}:${encodeURIComponent(dbPass)}@localhost:5432/${dbName}?schema=public`
+function getTenantDbServer() {
+  const parsed = new URL(env.platformDatabaseUrl || env.databaseUrl)
+  return {
+    host: parsed.hostname,
+    port: Number(parsed.port || '5432'),
+    dbName: parsed.pathname.replace(/^\//, ''),
+  }
+}
 
+function buildTenantDbUrl(dbName: string): string {
+  const base = new URL(env.platformDatabaseUrl || env.databaseUrl)
+  base.username = env.tenantDbUser
+  base.password = env.tenantDbPass
+  base.searchParams.set('schema', dbName)
+  return base.toString()
+}
+
+function createPrismaClientForTenant(dbName: string): PrismaClient {
   return new PrismaClient({
-    datasources: { db: { url } },
+    datasources: { db: { url: buildTenantDbUrl(dbName) } },
   })
 }
 
@@ -82,23 +95,22 @@ function createPrismaClientForTenant(dbName: string): PrismaClient {
  * Create the PostgreSQL database for a new tenant.
  * Uses a pg Pool connected to the postgres admin DB.
  */
-async function createTenantDatabase(dbName: string): Promise<void> {
+async function createTenantSchema(dbName: string): Promise<void> {
   // Safe: dbName already sanitised to [a-z0-9_] pattern from slug
   const adminPool = new Pool({
-    connectionString: env.platformDbAdminUrl,
-    database: 'postgres', // connect to admin DB to run CREATE DATABASE
+    connectionString: env.platformDatabaseUrl || env.databaseUrl,
   })
 
   try {
     // Check if DB already exists
-    const exists = await adminPool.query(`SELECT 1 FROM pg_database WHERE datname = $1`, [dbName])
+    const exists = await adminPool.query(`SELECT 1 FROM information_schema.schemata WHERE schema_name = $1`, [dbName])
     if (exists.rowCount && exists.rowCount > 0) {
-      throw new Error(`Database "${dbName}" already exists`)
+      throw new Error(`Tenant storage "${dbName}" already exists`)
     }
 
     // CREATE DATABASE — cannot be parameterised in PostgreSQL
     // Safe because dbName comes from our own slug sanitisation
-    await adminPool.query(`CREATE DATABASE "${dbName}"`)
+    await adminPool.query(`CREATE SCHEMA "${dbName}"`)
   } finally {
     await adminPool.end()
   }
@@ -109,16 +121,9 @@ async function createTenantDatabase(dbName: string): Promise<void> {
  * This applies the full school schema (students, fees, attendance, etc.)
  */
 function runMigrationsOnTenantDb(dbName: string): void {
-  const dbUser = env.tenantDbUser
-  const dbPass = env.tenantDbPass
-  const dbHost = 'localhost'
-  const dbPort = 5432
-
-  const tenantDbUrl = `postgresql://${dbUser}:${encodeURIComponent(dbPass)}@${dbHost}:${dbPort}/${dbName}?schema=public`
-
-  // Run prisma migrate deploy with the tenant DB URL
-  execSync(`npx prisma migrate deploy --schema=./prisma/schema.prisma`, {
-    env: { ...process.env, DATABASE_URL: tenantDbUrl },
+  // Build the current tenant schema in the isolated PostgreSQL schema.
+  execSync(`npx prisma db push --schema=./prisma/schema.prisma --accept-data-loss --skip-generate`, {
+    env: { ...process.env, DATABASE_URL: buildTenantDbUrl(dbName) },
     stdio: 'pipe',
     timeout: 60_000,
   })
@@ -129,11 +134,7 @@ function runMigrationsOnTenantDb(dbName: string): void {
  */
 async function seedTenantDb(dbName: string, input: OnboardTenantInput): Promise<void> {
   const { PrismaClient } = await import('@prisma/client')
-  const dbUser = env.tenantDbUser
-  const dbPass = env.tenantDbPass
-  const url = `postgresql://${dbUser}:${encodeURIComponent(dbPass)}@localhost:5432/${dbName}?schema=public`
-
-  const tenantPrisma = new PrismaClient({ datasources: { db: { url } } })
+  const tenantPrisma = new PrismaClient({ datasources: { db: { url: buildTenantDbUrl(dbName) } } })
 
   try {
     const passwordHash = await hashPassword(input.adminPasswordPlain)
@@ -159,6 +160,7 @@ async function seedTenantDb(dbName: string, input: OnboardTenantInput): Promise<
  */
 export async function provisionTenant(input: OnboardTenantInput): Promise<ProvisionResult> {
   const slug = sanitiseSlug(input.slug || input.name)
+  const dbServer = getTenantDbServer()
   const dbName = slugToDbName(slug)
   const platformDb = getPlatformPrisma()
 
@@ -168,13 +170,11 @@ export async function provisionTenant(input: OnboardTenantInput): Promise<Provis
     throw new Error(`Institution slug "${slug}" is already taken. Choose a different name.`)
   }
 
-  // 2. Create the isolated PostgreSQL database
-  await createTenantDatabase(dbName)
-
-  // 3. Run Prisma schema migrations on the new DB
+  // 2. Create isolated tenant storage and run the full school schema into it.
+  await createTenantSchema(dbName)
   runMigrationsOnTenantDb(dbName)
 
-  // 4. Seed: create default admin user in the tenant's own DB
+  // 3. Seed: create default admin user in the tenant's DB context
   await seedTenantDb(dbName, input)
 
   // 4b. Optional: Seed demo data (students, staff, records)
@@ -198,8 +198,8 @@ export async function provisionTenant(input: OnboardTenantInput): Promise<Provis
       state: input.state,
       country: input.country || 'India',
       dbName,
-      dbHost: 'localhost',
-      dbPort: 5432,
+      dbHost: dbServer.host,
+      dbPort: dbServer.port,
       plan: input.plan,
       status: input.plan === 'basic' ? 'trial' : 'active',
       trialEndsAt: input.plan === 'basic' ? new Date(Date.now() + 30 * 86400_000) : null,
@@ -211,7 +211,7 @@ export async function provisionTenant(input: OnboardTenantInput): Promise<Provis
         create: {
           action: 'ONBOARD',
           performedBy: input.performedBy,
-          details: { plan: input.plan, type: input.type, city: input.city },
+          details: { plan: input.plan, type: input.type, city: input.city, isolation: 'schema' },
         },
       },
     },
@@ -260,6 +260,35 @@ export async function activateTenant(tenantId: string, performedBy: string): Pro
       },
     },
   })
+}
+
+/**
+ * Delete a tenant from the platform registry.
+ *
+ * In shared-database hosting mode this removes the platform tenant record and
+ * the first admin login only. It intentionally does not bulk-delete school
+ * operational data because the current schema is shared and not tenant-keyed.
+ */
+export async function deleteTenant(tenantId: string, _performedBy: string): Promise<void> {
+  const platformDb = getPlatformPrisma()
+  const tenant = await (platformDb as any).tenant.findUnique({ where: { id: tenantId } })
+
+  if (!tenant) {
+    throw new Error('Tenant not found')
+  }
+
+  if (tenant.dbName && tenant.dbName.startsWith('tenant_')) {
+    const adminPool = new Pool({ connectionString: env.platformDatabaseUrl || env.databaseUrl })
+    try {
+      await adminPool.query(`DROP SCHEMA IF EXISTS "${tenant.dbName}" CASCADE`)
+    } finally {
+      await adminPool.end()
+    }
+  }
+
+  await (platformDb as any).tenantAuditLog.deleteMany({ where: { tenantId } })
+  await (platformDb as any).backup.deleteMany({ where: { tenantId } }).catch(() => undefined)
+  await (platformDb as any).tenant.delete({ where: { id: tenantId } })
 }
 
 /**

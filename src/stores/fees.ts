@@ -3,6 +3,8 @@ import { ref, computed, watch } from 'vue'
 import type { FeePayment, FeeStructure } from '@/types'
 import { useToastStore } from './toast'
 import { saveToStorage, loadFromStorage } from '@/utils/storage'
+import { feeService } from '@/services/feeService'
+import { getOfflineMode } from '@/utils/runtimeConfig'
 
 const demoStructures: FeeStructure[] = [
   {
@@ -237,18 +239,75 @@ export const useFeeStore = defineStore('fees', () => {
 
   const totalPending = computed(() => payments.value.reduce((sum, p) => sum + p.due_amount, 0))
 
-  function addStructure(data: Omit<FeeStructure, 'id'>) {
+  function shouldUseLocalMode() {
+    return getOfflineMode() || !localStorage.getItem('auth_token')
+  }
+
+  async function fetchFees() {
+    if (shouldUseLocalMode()) return
+    loading.value = true
+    try {
+      const [structuresRes, paymentsRes] = await Promise.all([
+        feeService.getStructures({ page: 1, per_page: 100 }),
+        feeService.getPayments({ page: 1, per_page: 100 }),
+      ])
+      structures.value = (structuresRes.data as any).items || structuresRes.data
+      payments.value = (paymentsRes.data as any).items || paymentsRes.data
+    } catch {
+      toast.error('Failed to load fee records')
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function addStructure(data: Omit<FeeStructure, 'id'>) {
+    if (!shouldUseLocalMode()) {
+      loading.value = true
+      try {
+        const res = await feeService.createStructure(data)
+        structures.value.push(res.data)
+        toast.success('Fee structure created')
+      } catch {
+        toast.error('Failed to create fee structure')
+      } finally {
+        loading.value = false
+      }
+      return
+    }
+
     structures.value.push({ ...data, id: Date.now() })
     toast.success('Fee structure created')
   }
 
-  function collectPayment(paymentId: number, amount: number, method: string) {
+  async function collectPayment(paymentId: number, amount: number, method: string) {
     const payment = payments.value.find((p) => p.id === paymentId)
     if (!payment) return
 
     // Cap amount to prevent overpayment
     const cappedAmount = Math.min(amount, payment.due_amount)
     if (cappedAmount <= 0) return
+
+    if (!shouldUseLocalMode()) {
+      loading.value = true
+      try {
+        const res = await feeService.collectPayment(
+          {
+            amount: cappedAmount,
+            payment_method: method,
+            payment_date: new Date().toISOString().split('T')[0],
+          },
+          paymentId,
+        )
+        const idx = payments.value.findIndex((p) => p.id === paymentId)
+        if (idx !== -1) payments.value[idx] = res.data
+        toast.success(`Payment of Rs ${cappedAmount.toLocaleString('en-IN')} collected`)
+      } catch {
+        toast.error('Failed to collect payment')
+      } finally {
+        loading.value = false
+      }
+      return
+    }
 
     payment.paid_amount += cappedAmount
     payment.due_amount = payment.total_amount - payment.paid_amount
@@ -269,13 +328,34 @@ export const useFeeStore = defineStore('fees', () => {
     toast.success(`Payment of ₹${amount.toLocaleString('en-IN')} collected`)
   }
 
-  function assignFee(studentId: number, studentName: string, className: string, structureId: number) {
+  async function assignFee(studentId: number, studentName: string, className: string, structureId: number) {
     const structure = structures.value.find((s) => s.id === structureId)
     if (!structure) return
 
     const exists = payments.value.find((p) => p.student_id === studentId && p.fee_name === structure.name)
     if (exists) {
       toast.warning('Fee already assigned to this student')
+      return
+    }
+
+    if (!shouldUseLocalMode()) {
+      loading.value = true
+      try {
+        const res = await feeService.assignFee({
+          student_id: studentId,
+          fee_structure_id: structureId,
+          total_amount: structure.amount,
+          paid_amount: 0,
+          payment_method: null,
+          payment_date: null,
+        })
+        payments.value.push(res.data)
+        toast.success('Fee assigned to student')
+      } catch {
+        toast.error('Failed to assign fee')
+      } finally {
+        loading.value = false
+      }
       return
     }
 
@@ -393,6 +473,7 @@ export const useFeeStore = defineStore('fees', () => {
     hasRiskDemoData,
     totalCollected,
     totalPending,
+    fetchFees,
     addStructure,
     collectPayment,
     assignFee,

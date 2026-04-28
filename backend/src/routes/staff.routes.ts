@@ -17,7 +17,7 @@ function parsePerPage(value: unknown, fallback: number) {
 
 const router = Router()
 
-router.get('/', requireAuth, async (req, res) => {
+router.get('/', requireAuth, requireRole(['admin', 'hod']), async (req, res) => {
   try {
     const data = await listStaff(req.tenantDb!, {
       page: parsePage(req.query.page, 1),
@@ -50,7 +50,7 @@ router.post('/', requireAuth, requireRole(['admin']), writeActionLimiter, async 
   }
 })
 
-router.get('/:id', requireAuth, async (req, res) => {
+router.get('/:id', requireAuth, requireRole(['admin', 'hod']), async (req, res) => {
   try {
     const data = await getStaff(req.tenantDb!, Number(req.params.id))
     if (!data) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Staff member not found' } })

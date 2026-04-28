@@ -135,6 +135,7 @@
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Dialog, DialogPanel, TransitionChild, TransitionRoot } from '@headlessui/vue'
+import { useAuthStore } from '@/stores/auth'
 import { useStudentStore } from '@/stores/students'
 import { useStaffStore } from '@/stores/staff'
 
@@ -144,6 +145,7 @@ const activeIndex = ref(0)
 const inputRef = ref<HTMLInputElement | null>(null)
 const router = useRouter()
 
+const authStore = useAuthStore()
 const studentStore = useStudentStore()
 const staffStore = useStaffStore()
 
@@ -154,6 +156,7 @@ const items = computed(() => {
       title: 'Dashboard',
       subtitle: 'System Overview',
       path: '/',
+      routeName: 'dashboard',
       icon: '📊',
       type: 'command',
       bg: 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30',
@@ -163,6 +166,7 @@ const items = computed(() => {
       title: 'Attendance',
       subtitle: 'Manage Registry',
       path: '/attendance',
+      routeName: 'attendance',
       icon: '📋',
       type: 'command',
       bg: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30',
@@ -172,6 +176,7 @@ const items = computed(() => {
       title: 'Fee Collection',
       subtitle: 'Finance & Payments',
       path: '/fees',
+      routeName: 'fees',
       icon: '💰',
       type: 'command',
       bg: 'bg-amber-50 text-amber-600 dark:bg-amber-900/30',
@@ -181,6 +186,7 @@ const items = computed(() => {
       title: 'Staff Directory',
       subtitle: 'Faculty Management',
       path: '/staff',
+      routeName: 'staff',
       icon: '👤',
       type: 'command',
       bg: 'bg-purple-50 text-purple-600 dark:bg-purple-900/30',
@@ -190,13 +196,16 @@ const items = computed(() => {
       title: 'Settings',
       subtitle: 'System Configuration',
       path: '/settings',
+      routeName: 'settings',
       icon: '⚙️',
       type: 'command',
       bg: 'bg-gray-50 text-gray-600 dark:bg-gray-900/30',
     },
   ]
 
-  const students = studentStore.students.map((s) => ({
+  const allowedMenuItems = menuItems.filter((item) => authStore.canAccess(item.routeName))
+
+  const students = authStore.canAccess('student-detail') ? studentStore.students.map((s) => ({
     id: `s${s.id}`,
     title: s.name,
     subtitle: `Student · ${s.class_name} · ${s.roll_number}`,
@@ -204,9 +213,9 @@ const items = computed(() => {
     path: `/students/${s.id}`,
     icon: '👨‍🎓',
     type: 'student',
-  }))
+  })) : []
 
-  const staff = staffStore.staffMembers.map((s) => ({
+  const staff = authStore.canAccess('staff-detail') ? staffStore.staffMembers.map((s) => ({
     id: `st${s.id}`,
     title: s.name,
     subtitle: `Faculty · ${s.role} · ${s.department}`,
@@ -214,9 +223,9 @@ const items = computed(() => {
     path: `/staff/${s.id}`,
     icon: '🏢',
     type: 'staff',
-  }))
+  })) : []
 
-  return [...menuItems, ...students, ...staff]
+  return [...allowedMenuItems, ...students, ...staff]
 })
 
 const filteredResults = computed(() => {

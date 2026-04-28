@@ -12,6 +12,7 @@ export type AuthClaims = {
   email: string
   /** Tenant slug — e.g. "dps-delhi". Empty string for superadmin (platform-level). */
   tenantSlug: string
+  tenantId?: string
   isRoot: boolean
 }
 

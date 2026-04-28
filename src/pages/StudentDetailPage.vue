@@ -655,6 +655,8 @@ function buildFormFromStudent(s: Student): Record<string, any> {
 watch(student, (s) => { if (s && !saving.value) Object.assign(form, buildFormFromStudent(s)) }, { immediate: true })
 
 onMounted(async () => {
+  void feeStore.fetchFees()
+  void certStore.fetchCertificates({ student_id: studentId.value })
   if (!student.value) {
     const fetched = await studentStore.fetchStudentById(studentId.value)
     if (fetched) {
@@ -754,17 +756,17 @@ async function handlePhotoUpload(event: Event) {
   }
 }
 
-function handleAssignFee() {
+async function handleAssignFee() {
   if (!assignFeeId.value || !student.value) return
-  feeStore.assignFee(student.value.id, student.value.name, student.value.class_name, Number(assignFeeId.value))
+  await feeStore.assignFee(student.value.id, student.value.name, student.value.class_name, Number(assignFeeId.value))
   showAssignModal.value = false
   assignFeeId.value = ''
 }
 
-function handleIssueCert() {
-  if (!student.value) return
-  certStore.issueCertificate({
-    student_id: student.value.id,
+  async function handleIssueCert() {
+    if (!student.value) return
+  await certStore.issueCertificate({
+      student_id: student.value.id,
     student_name: student.value.name,
     class_name: student.value.class_name,
     type: certForm.type,
@@ -777,7 +779,7 @@ function handleIssueCert() {
   certForm.type = 'tc'
   // Switch to certificates tab to show the freshly issued cert
   activeFormTab.value = 'certificates'
-}
+  }
 
 function sendEmail() {
   if (!student.value?.email) { toast.warning('Student email not available'); return }

@@ -13,6 +13,7 @@ const defaultSettings: SchoolSettings = {
   academic_year: '2025-26',
   institution_code: '001',
   brand_color: '#4f46e5',
+  offline_mode: true,
   sms_enabled: true,
   sms_api_key: 'demo-api-key-xxxxx',
   sms_sender_id: 'SCHOOL',

@@ -8,6 +8,8 @@ const smsTypeEnum = z.enum(['payment', 'due_reminder', 'attendance', 'general', 
 const deliveryChannelEnum = z.enum(['sms', 'whatsapp'])
 const expensePaymentMethodEnum = z.enum(['cash', 'bank_transfer', 'cheque', 'card', 'upi'])
 const webhookDeliveryStatusEnum = z.enum(['pending', 'success', 'failed'])
+const staffTaskPriorityEnum = z.enum(['low', 'medium', 'high'])
+const staffTaskStatusEnum = z.enum(['pending', 'in_progress', 'completed'])
 const payrollStatusEnum = z.enum(['pending', 'paid'])
 const purchaseOrderStatusEnum = z.enum(['draft', 'approved', 'received', 'cancelled'])
 const bankEntryDirectionEnum = z.enum(['inflow', 'outflow'])
@@ -207,6 +209,45 @@ export const classroomResourceListQuerySchema = z.object({
   resource_type: classroomResourceTypeEnum.optional(),
 })
 
+const classSectionInputSchema = z.object({
+  name: z.string().min(1).max(40),
+  capacity: z.number().int().positive().max(500),
+})
+
+export const classCreateSchema = z.object({
+  name: z.string().min(1).max(120),
+  grade: z.number().int().min(1).max(99),
+  class_teacher: z.string().max(160).nullable().optional(),
+  academic_year: z.string().min(4).max(20),
+  room: z.string().max(120).nullable().optional(),
+  color: z.string().min(1).max(40).optional(),
+  sections: z.array(classSectionInputSchema).min(1).max(30),
+})
+
+export const classUpdateSchema = z
+  .object({
+    name: z.string().min(1).max(120).optional(),
+    grade: z.number().int().min(1).max(99).optional(),
+    class_teacher: z.string().max(160).nullable().optional(),
+    academic_year: z.string().min(4).max(20).optional(),
+    room: z.string().max(120).nullable().optional(),
+    color: z.string().min(1).max(40).optional(),
+  })
+  .refine((value) => Object.keys(value).length > 0, {
+    message: 'At least one field must be provided',
+  })
+
+export const classSectionCreateSchema = classSectionInputSchema
+
+export const classSectionUpdateSchema = z
+  .object({
+    name: z.string().min(1).max(40).optional(),
+    capacity: z.number().int().positive().max(500).optional(),
+  })
+  .refine((value) => Object.keys(value).length > 0, {
+    message: 'At least one field must be provided',
+  })
+
 export const assignmentSubmissionReviewSchema = z
   .object({
     status: assignmentSubmissionStatusEnum.optional(),
@@ -241,6 +282,12 @@ export const feePaymentCreateSchema = z.object({
   total_amount: z.number().nonnegative(),
   paid_amount: z.number().nonnegative(),
   payment_method: paymentMethodEnum.nullable().optional(),
+  payment_date: z.string().nullable().optional(),
+})
+
+export const feePaymentCollectSchema = z.object({
+  amount: z.number().positive(),
+  payment_method: paymentMethodEnum,
   payment_date: z.string().nullable().optional(),
 })
 
@@ -437,6 +484,26 @@ export const appraisalUpdateSchema = z
 export const appraisalListQuerySchema = z.object({
   staff_id: z.coerce.number().int().positive().optional(),
   status: appraisalStatusEnum.optional(),
+  page: z.coerce.number().int().positive().optional(),
+  per_page: z.coerce.number().int().positive().optional(),
+})
+
+export const staffTaskCreateSchema = z.object({
+  staff_id: z.number().int().positive(),
+  title: z.string().min(1).max(200),
+  description: z.string().max(2000).nullable().optional(),
+  priority: staffTaskPriorityEnum,
+  status: staffTaskStatusEnum.optional(),
+  due_date: z.string().min(8),
+})
+
+export const staffTaskStatusUpdateSchema = z.object({
+  status: staffTaskStatusEnum,
+})
+
+export const staffTaskListQuerySchema = z.object({
+  staff_id: z.coerce.number().int().positive().optional(),
+  status: staffTaskStatusEnum.optional(),
   page: z.coerce.number().int().positive().optional(),
   per_page: z.coerce.number().int().positive().optional(),
 })

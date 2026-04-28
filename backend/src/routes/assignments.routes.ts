@@ -51,7 +51,7 @@ function parsePerPage(value: unknown, fallback: number) {
 
 const router = Router()
 
-router.get('/', requireAuth, validateQuery(assignmentListQuerySchema), async (req, res) => {
+router.get('/', requireAuth, requireRole(['admin', 'teacher', 'hod', 'parent', 'student']), validateQuery(assignmentListQuerySchema), async (req, res) => {
   try {
     const data = await listAssignments(
       req.tenantDb!,
@@ -70,7 +70,7 @@ router.get('/', requireAuth, validateQuery(assignmentListQuerySchema), async (re
   }
 })
 
-router.get('/resources', requireAuth, validateQuery(classroomResourceListQuerySchema), async (req, res) => {
+router.get('/resources', requireAuth, requireRole(['admin', 'teacher', 'hod', 'parent', 'student']), validateQuery(classroomResourceListQuerySchema), async (req, res) => {
   try {
     const data = await listClassroomResources(req.tenantDb!, {
       page: parsePage(req.query.page, 1),

@@ -38,6 +38,16 @@ function parseDbCredentials(url: string): { user: string; pass: string } {
   }
 }
 
+function buildDefaultAdminUrl(url: string): string {
+  try {
+    const parsed = new URL(url)
+    parsed.pathname = '/postgres'
+    return parsed.toString()
+  } catch {
+    return 'postgresql://postgres:postgres@localhost:5432/postgres'
+  }
+}
+
 const parsedDbCreds = parseDbCredentials(databaseUrl)
 const tenantDbUser = process.env.TENANT_DB_USER || parsedDbCreds.user || 'postgres'
 const tenantDbPass = process.env.TENANT_DB_PASS || parsedDbCreds.pass || 'postgres'
@@ -62,7 +72,7 @@ export const env = {
   port: Number(process.env.PORT || 8080),
   databaseUrl,
   platformDatabaseUrl: process.env.PLATFORM_DATABASE_URL || databaseUrl,
-  platformDbAdminUrl: process.env.PLATFORM_DB_ADMIN_URL || 'postgresql://postgres:postgres@localhost:5432/postgres',
+  platformDbAdminUrl: process.env.PLATFORM_DB_ADMIN_URL || buildDefaultAdminUrl(process.env.PLATFORM_DATABASE_URL || databaseUrl),
   tenantDbUser,
   tenantDbPass,
   r2: {

@@ -1,0 +1,1 @@
+ALTER TABLE "Tenant" DROP CONSTRAINT IF EXISTS "Tenant_dbName_key";

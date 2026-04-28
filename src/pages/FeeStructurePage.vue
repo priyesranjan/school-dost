@@ -394,7 +394,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue'
+  import { ref, reactive, computed, onMounted } from 'vue'
 import { useFeeStore } from '@/stores/fees'
 import { useStudentStore } from '@/stores/students'
 import { useToastStore } from '@/stores/toast'
@@ -410,6 +410,10 @@ import type { DropdownOption } from '@/components/ui/SmartDropdown.vue'
 const feeStore = useFeeStore()
 const studentStore = useStudentStore()
 const toast = useToastStore()
+
+onMounted(() => {
+  void feeStore.fetchFees()
+})
 
 const activeTab = ref<'structures' | 'assign'>('structures')
 const tabs: Array<{ key: 'structures' | 'assign'; label: string }> = [
@@ -531,12 +535,12 @@ function openAddModal(presetClass?: string) {
   showAddModal.value = true
 }
 
-function handleAddStructure() {
+  async function handleAddStructure() {
   if (!addForm.name || !addForm.class_name || !addForm.amount || !addForm.due_date) {
     toast.warning('Please fill all required fields')
     return
   }
-  feeStore.addStructure({ ...addForm })
+  await feeStore.addStructure({ ...addForm })
   showAddModal.value = false
 }
 
@@ -563,12 +567,12 @@ function openAssignModal(student: Student) {
   showAssignModal.value = true
 }
 
-function handleAssignFee() {
+  async function handleAssignFee() {
   if (!assignTarget.value || !assignStructureId.value) {
     toast.warning('Please select a fee structure')
     return
   }
-  feeStore.assignFee(
+  await feeStore.assignFee(
     assignTarget.value.id,
     assignTarget.value.name,
     assignTarget.value.class_name,
@@ -609,7 +613,7 @@ async function handleBulkAssign() {
       return p.student_id === s.id && struct && p.fee_name === struct.name
     })
     if (!already) {
-      feeStore.assignFee(s.id, s.name, s.class_name, Number(bulkStructureId.value))
+      await feeStore.assignFee(s.id, s.name, s.class_name, Number(bulkStructureId.value))
       assigned++
     }
   }

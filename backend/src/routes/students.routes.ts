@@ -25,7 +25,7 @@ function parsePerPage(value: unknown, fallback: number) {
 
 const router = Router()
 
-router.get('/', requireAuth, async (req, res) => {
+router.get('/', requireAuth, requireRole(['admin', 'teacher', 'receptionist', 'hod']), async (req, res) => {
   try {
     const data = await listStudents(req.tenantDb!, {
       page: parsePage(req.query.page, 1),
@@ -118,7 +118,7 @@ router.post(
   },
 )
 
-router.get('/:id', requireAuth, async (req, res) => {
+router.get('/:id', requireAuth, requireRole(['admin', 'hod', 'teacher', 'receptionist']), async (req, res) => {
   try {
     const data = await getStudent(req.tenantDb!, Number(req.params.id))
     if (!data) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Student not found' } })

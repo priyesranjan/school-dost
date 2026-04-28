@@ -209,7 +209,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, nextTick } from 'vue'
+import { computed, reactive, ref, nextTick, onMounted } from 'vue'
 import type { Certificate } from '@/types'
 import { useAuthStore } from '@/stores/auth'
 import { useStudentStore } from '@/stores/students'
@@ -228,6 +228,10 @@ const auth = useAuthStore()
 const toast = useToastStore()
 const studentStore = useStudentStore()
 const certificateStore = useCertificateStore()
+
+onMounted(() => {
+  void certificateStore.fetchCertificates()
+})
 
 const showIssueModal = ref(false)
 const isPrinting = ref(false)
@@ -252,13 +256,13 @@ function resetForm() {
   form.conduct = 'High Exemplary'
 }
 
-function handleIssue() {
+async function handleIssue() {
   if (!selectedStudent.value) {
     toast.warning('Member selection required.')
     return
   }
 
-  const cert = certificateStore.issueCertificate({
+  const cert = await certificateStore.issueCertificate({
     student_id: selectedStudent.value.id,
     student_name: selectedStudent.value.name,
     class_name: selectedStudent.value.class_name,

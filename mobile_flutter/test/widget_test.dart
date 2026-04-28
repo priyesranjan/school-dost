@@ -1,16 +1,17 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:mobile_flutter/main.dart';
+import 'package:mobile_flutter/features/auth/login_screen.dart';
 
 void main() {
-  testWidgets('shows mobile login shell when there is no saved session', (WidgetTester tester) async {
-    SharedPreferences.setMockInitialValues({});
+  testWidgets('shows mobile login shell', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      const ProviderScope(child: MaterialApp(home: LoginScreen())),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
 
-    await tester.pumpWidget(const ErpSchoolMobileApp());
-    await tester.pumpAndSettle();
-
-    expect(find.text('ERP School Mobile'), findsOneWidget);
+    expect(find.text('Teachmint++'), findsOneWidget);
     expect(find.text('Sign In'), findsOneWidget);
   });
 }

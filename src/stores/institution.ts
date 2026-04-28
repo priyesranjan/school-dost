@@ -3,6 +3,8 @@ import { ref, watch } from 'vue'
 import type { InstitutionProfile } from '@/types'
 import { useToastStore } from './toast'
 import { saveToStorage, loadFromStorage } from '@/utils/storage'
+import { institutionService } from '@/services/institutionService'
+import { getOfflineMode } from '@/utils/runtimeConfig'
 
 const defaultProfile: InstitutionProfile = {
   id: 'tenant_default',
@@ -70,8 +72,37 @@ export const useInstitutionStore = defineStore('institution', () => {
 
   watch(profile, (val) => saveToStorage('institution_profile', val), { deep: true })
 
-  function updateProfile(data: Partial<InstitutionProfile>) {
+  function shouldUseLocalMode() {
+    return getOfflineMode() || !localStorage.getItem('auth_token')
+  }
+
+  async function fetchProfile(slug?: string) {
+    if (!slug && shouldUseLocalMode()) return
+    loading.value = true
+    try {
+      const data = await institutionService.getProfile(slug)
+      if (data) Object.assign(profile.value, data)
+    } catch {
+      if (!slug) toast.error('Failed to load institution profile')
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function updateProfile(data: Partial<InstitutionProfile>) {
     Object.assign(profile.value, data)
+    if (!shouldUseLocalMode()) {
+      loading.value = true
+      try {
+        const saved = await institutionService.saveProfile(profile.value)
+        Object.assign(profile.value, saved)
+      } catch {
+        toast.error('Failed to save institution profile')
+        loading.value = false
+        return
+      }
+      loading.value = false
+    }
     toast.success('Institution profile updated')
   }
 
@@ -85,14 +116,25 @@ export const useInstitutionStore = defineStore('institution', () => {
     toast.success('Principal photo updated')
   }
 
-  function togglePublicWebsite() {
+  async function togglePublicWebsite() {
     profile.value.public_website_enabled = !profile.value.public_website_enabled
+    if (!shouldUseLocalMode()) {
+      try {
+        const saved = await institutionService.saveProfile(profile.value)
+        Object.assign(profile.value, saved)
+      } catch {
+        profile.value.public_website_enabled = !profile.value.public_website_enabled
+        toast.error('Failed to update website status')
+        return
+      }
+    }
     toast.success(profile.value.public_website_enabled ? 'Public website enabled' : 'Public website disabled')
   }
 
   return {
     profile,
     loading,
+    fetchProfile,
     updateProfile,
     uploadLogo,
     uploadPrincipalPhoto,
