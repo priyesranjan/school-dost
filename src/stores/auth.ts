@@ -6,6 +6,7 @@ import { rolePermissions, type Role } from '@/constants/permissions'
 import { twoFactorService } from '@/services/twoFactorService'
 import { getOtpMode } from '@/utils/runtimeConfig'
 import { CircuitOpenError } from '@/services/circuitBreakerService'
+import { extractApiErrorMessage } from '@/services/superadminService'
 import type { AuthUser, OtpChallenge } from '@/types'
 
 // Demo users for login
@@ -26,17 +27,80 @@ const demoUsers: { email: string; password: string; name: string; role: Role; ph
     phone: '9876543200',
   },
   // School: Delhi Public School (tenant_dps) — 450 students, Premium plan
-  { email: 'admin@school.com',       password: 'admin123',   name: 'Admin User',       role: 'admin',        phone: '9876543201', tenant_id: 'tenant_dps' },
-  { email: 'accountant@school.com',  password: 'acc123',     name: 'Ramesh Verma',     role: 'accountant',   phone: '9876543202', tenant_id: 'tenant_dps' },
-  { email: 'teacher@school.com',     password: 'teach123',   name: 'Priya Sharma',     role: 'teacher',      phone: '9876543203', tenant_id: 'tenant_dps' },
-  { email: 'reception@school.com',   password: 'rec123',     name: 'Neha Singh',       role: 'receptionist', phone: '9876543204', tenant_id: 'tenant_dps' },
-  { email: 'student@school.com',     password: 'student123', name: 'Aarav Patel',      role: 'student',      phone: '9876543205', tenant_id: 'tenant_dps' },
-  { email: 'parent@school.com',      password: 'parent123',  name: 'Vijay Patel',      role: 'parent',       phone: '9876543206', tenant_id: 'tenant_dps' },
-  { email: 'hod@school.com',         password: 'hod123',     name: 'Dr. Ramesh Gupta', role: 'hod',          phone: '9876543207', tenant_id: 'tenant_dps' },
+  {
+    email: 'admin@school.com',
+    password: 'admin123',
+    name: 'Admin User',
+    role: 'admin',
+    phone: '9876543201',
+    tenant_id: 'tenant_dps',
+  },
+  {
+    email: 'accountant@school.com',
+    password: 'acc123',
+    name: 'Ramesh Verma',
+    role: 'accountant',
+    phone: '9876543202',
+    tenant_id: 'tenant_dps',
+  },
+  {
+    email: 'teacher@school.com',
+    password: 'teach123',
+    name: 'Priya Sharma',
+    role: 'teacher',
+    phone: '9876543203',
+    tenant_id: 'tenant_dps',
+  },
+  {
+    email: 'reception@school.com',
+    password: 'rec123',
+    name: 'Neha Singh',
+    role: 'receptionist',
+    phone: '9876543204',
+    tenant_id: 'tenant_dps',
+  },
+  {
+    email: 'student@school.com',
+    password: 'student123',
+    name: 'Aarav Patel',
+    role: 'student',
+    phone: '9876543205',
+    tenant_id: 'tenant_dps',
+  },
+  {
+    email: 'parent@school.com',
+    password: 'parent123',
+    name: 'Vijay Patel',
+    role: 'parent',
+    phone: '9876543206',
+    tenant_id: 'tenant_dps',
+  },
+  {
+    email: 'hod@school.com',
+    password: 'hod123',
+    name: 'Dr. Ramesh Gupta',
+    role: 'hod',
+    phone: '9876543207',
+    tenant_id: 'tenant_dps',
+  },
   // School: Bright Future Academy (tenant_bright) — 180 students, Trial expiring in 4 days
-  { email: 'admin@brightfuture.in',  password: 'admin123',   name: 'Rajesh Agarwal',   role: 'admin',        phone: '9876543210', tenant_id: 'tenant_bright' },
+  {
+    email: 'admin@brightfuture.in',
+    password: 'admin123',
+    name: 'Rajesh Agarwal',
+    role: 'admin',
+    phone: '9876543210',
+    tenant_id: 'tenant_bright',
+  },
   // School: KV No.1 Ranchi (tenant_kvno1) — expired school
-  { email: 'principal@kvno1.edu.in', password: 'admin123',   name: 'R.K. Sharma',      role: 'admin',        phone: '9876543220', tenant_id: 'tenant_kvno1' },
+  {
+    email: 'principal@kvno1.edu.in',
+    password: 'admin123',
+    name: 'R.K. Sharma',
+    role: 'admin',
+    phone: '9876543220',
+    tenant_id: 'tenant_kvno1',
+  },
 ]
 
 function toAuthUser(data: (typeof demoUsers)[number]): AuthUser {
@@ -52,7 +116,7 @@ function toAuthUser(data: (typeof demoUsers)[number]): AuthUser {
     email: data.email,
     phone: data.phone,
     tenant_slug: data.tenant_id ? tenantSlugById[data.tenant_id] : undefined,
-    tenant_id: data.tenant_id,  // ← pass tenant_id so subscription card shows correct school
+    tenant_id: data.tenant_id, // ← pass tenant_id so subscription card shows correct school
   }
 }
 
@@ -160,7 +224,7 @@ export const useAuthStore = defineStore('auth', () => {
       localStorage.setItem('auth_token', token)
       if (refreshToken) localStorage.setItem('refresh_token', refreshToken)
       localStorage.setItem('auth_user', JSON.stringify(resolvedUser))
-      
+
       if (resolvedUser.tenant_slug) {
         localStorage.setItem('dev_tenant_slug', resolvedUser.tenant_slug)
       } else {
@@ -188,6 +252,8 @@ export const useAuthStore = defineStore('auth', () => {
   async function loginWithPassword(email: string, password: string) {
     loading.value = true
     try {
+      // Login should not be forced to a stale tenant context from old local data.
+      localStorage.removeItem('dev_tenant_slug')
       const result = await twoFactorService.loginDirect(email, password)
       if (!result.ok) {
         toast.error('Invalid email or password')
@@ -205,19 +271,19 @@ export const useAuthStore = defineStore('auth', () => {
       localStorage.setItem('auth_token', token)
       if (refreshToken) localStorage.setItem('refresh_token', refreshToken)
       localStorage.setItem('auth_user', JSON.stringify(resolvedUser))
-      
+
       if (resolvedUser.tenant_slug) {
         localStorage.setItem('dev_tenant_slug', resolvedUser.tenant_slug)
       } else {
         localStorage.removeItem('dev_tenant_slug')
       }
       user.value = resolvedUser
-      
+
       toast.success(`Logged in successfully. Welcome back, ${resolvedUser.name}!`)
       router.push(resolvedUser.role === 'superadmin' ? { name: 'superadmin-dashboard' } : { name: 'dashboard' })
       return true
     } catch (error) {
-      toast.error('Login failed. Please check your credentials.')
+      toast.error(extractApiErrorMessage(error, 'Login failed. Please check your credentials.'))
       return false
     } finally {
       loading.value = false

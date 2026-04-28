@@ -27,6 +27,11 @@ function resolveTenantSlug(): string {
   return reserved.has(sub) ? '' : sub
 }
 
+function shouldAttachTenantSlug(config: InternalAxiosRequestConfig): boolean {
+  const target = `${config.baseURL || ''}${config.url || ''}`.toLowerCase()
+  return !target.includes('/auth/login') && !target.includes('/auth/refresh')
+}
+
 const api = axios.create({
   baseURL: configuredBaseUrl || '/api',
   headers: {
@@ -37,7 +42,9 @@ const api = axios.create({
 
 api.interceptors.request.use((config) => {
   if (getOfflineMode()) {
-    return Promise.reject(new axios.AxiosError('Offline mode is enabled. Live API calls are disabled.', 'ERR_OFFLINE_MODE', config))
+    return Promise.reject(
+      new axios.AxiosError('Offline mode is enabled. Live API calls are disabled.', 'ERR_OFFLINE_MODE', config),
+    )
   }
   const token = localStorage.getItem('auth_token')
   if (token) {
@@ -45,8 +52,10 @@ api.interceptors.request.use((config) => {
   }
   // Multi-tenancy: send slug so backend resolves the correct tenant DB.
   // Production uses subdomain; dev/Postman uses this header fallback.
-  const slug = resolveTenantSlug()
-  if (slug) config.headers['X-Tenant-Slug'] = slug
+  if (shouldAttachTenantSlug(config)) {
+    const slug = resolveTenantSlug()
+    if (slug) config.headers['X-Tenant-Slug'] = slug
+  }
   return config
 })
 
@@ -60,10 +69,10 @@ type ApiRequestConfig = InternalAxiosRequestConfig & {
 }
 
 async function tryRefreshToken(): Promise<string | null> {
-    const refreshToken = localStorage.getItem('refresh_token')
-    if (!refreshToken) return null
-    try {
-      const refreshUrl = configuredBaseUrl ? `${configuredBaseUrl.replace(/\/$/, '')}/auth/refresh` : '/api/auth/refresh'
+  const refreshToken = localStorage.getItem('refresh_token')
+  if (!refreshToken) return null
+  try {
+    const refreshUrl = configuredBaseUrl ? `${configuredBaseUrl.replace(/\/$/, '')}/auth/refresh` : '/api/auth/refresh'
     const tenantSlug = localStorage.getItem('dev_tenant_slug') || ''
     const res = await axios.post(
       refreshUrl,
