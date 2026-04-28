@@ -17,7 +17,7 @@ function readBooleanEnv(value: unknown, fallback: boolean): boolean {
 export function getOfflineMode(): boolean {
   const settings = readSettings()
   if (typeof settings.offline_mode === 'boolean') return settings.offline_mode
-  return readBooleanEnv(import.meta.env.VITE_OFFLINE_MODE, true)
+  return readBooleanEnv(import.meta.env.VITE_OFFLINE_MODE, false)
 }
 
 export function setOfflineMode(enabled: boolean): void {
@@ -35,7 +35,7 @@ export function getOtpMode(): 'demo' | 'api' {
   if (getOfflineMode()) return 'demo'
   if (settings.otp_mode === 'api') return 'api'
   if (settings.otp_mode === 'demo') return 'demo'
-  return (import.meta.env.VITE_OTP_MODE || 'demo') === 'api' ? 'api' : 'demo'
+  return (import.meta.env.VITE_OTP_MODE || 'api') === 'api' ? 'api' : 'demo'
 }
 
 export function getR2Mode(): 'demo' | 'api' {
@@ -43,7 +43,7 @@ export function getR2Mode(): 'demo' | 'api' {
   if (getOfflineMode()) return 'demo'
   if (settings.r2_mode === 'api') return 'api'
   if (settings.r2_mode === 'demo') return 'demo'
-  return (import.meta.env.VITE_R2_MODE || 'demo') === 'api' ? 'api' : 'demo'
+  return (import.meta.env.VITE_R2_MODE || 'api') === 'api' ? 'api' : 'demo'
 }
 
 export function getAuditSignatureMode(): 'local' | 'api' {
@@ -51,7 +51,7 @@ export function getAuditSignatureMode(): 'local' | 'api' {
   if (getOfflineMode()) return 'local'
   if (settings.audit_signature_mode === 'api') return 'api'
   if (settings.audit_signature_mode === 'local') return 'local'
-  return (import.meta.env.VITE_AUDIT_SIGNATURE_MODE || 'local') === 'api' ? 'api' : 'local'
+  return (import.meta.env.VITE_AUDIT_SIGNATURE_MODE || 'api') === 'api' ? 'api' : 'local'
 }
 
 export function getAuditSignatureEndpoint(): string {
