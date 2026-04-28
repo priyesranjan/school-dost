@@ -17,16 +17,12 @@ Coolify can deploy the whole stack directly from the repo root now.
 
 ### What it starts
 
-- `postgres`
 - `backend`
 - `frontend`
 
 ### First-run behavior
 
-- Postgres creates:
-  - `erp_platform`
-  - `tenant_delhi_public_school`
-- Backend runs tenant Prisma migrations
+- Backend runs Prisma migrations against your external Postgres URL
 - Backend can seed platform metadata automatically when `INIT_PLATFORM_ON_BOOT=true`
 
 ### Important envs for Coolify
@@ -34,11 +30,16 @@ Coolify can deploy the whole stack directly from the repo root now.
 Set these on the Compose app:
 
 ```env
-POSTGRES_USER=erp
-POSTGRES_PASSWORD=change-this-now
+DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/kgnox_db?schema=public
+PLATFORM_DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/kgnox_db?schema=public
+PLATFORM_DB_ADMIN_URL=postgresql://USER:PASSWORD@HOST:5432/postgres?schema=public
+TENANT_DB_USER=USER
+TENANT_DB_PASS=PASSWORD
+
 JWT_SECRET=replace-with-strong-secret-at-least-24-chars
-JWT_REFRESH_SECRET=replace-with-strong-secret-at-least-24-chars
-AUDIT_SIGNING_SALT=replace-with-strong-secret-at-least-24-chars
+JWT_REFRESH_SECRET=replace-with-strong-refresh-secret-at-least-24-chars
+AUDIT_SIGNING_SALT=replace-with-strong-audit-salt-at-least-24-chars
+
 ALLOWED_ORIGINS=https://your-frontend-domain.com
 INIT_PLATFORM_ON_BOOT=true
 DEV_TENANT_SLUG=delhi-public-school
@@ -49,7 +50,6 @@ DEV_TENANT_ADMIN_EMAIL=admin@school.com
 Optional:
 
 ```env
-FRONTEND_PORT=80
 VITE_TENANT_SLUG=delhi-public-school
 R2_ACCOUNT_ID=
 R2_ACCESS_KEY_ID=
@@ -71,8 +71,8 @@ COMMS_PROVIDER_API_KEY=
 - `frontend`: `https://app.yourdomain.com`
 - `backend`: `https://api.yourdomain.com`
 - PostgreSQL:
-  - either a managed database
-  - or a Coolify Postgres service
+  - your existing VPS Postgres (recommended)
+  - or a managed database
 
 ## Frontend service
 
