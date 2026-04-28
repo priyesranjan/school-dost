@@ -59,31 +59,6 @@
             {{ auth.loading ? 'Signing in...' : 'Login' }}
           </button>
         </form>
-
-        <div class="flex items-center gap-3">
-          <div class="h-px flex-1 bg-gray-100 dark:bg-gray-700"></div>
-          <span class="text-[10px] font-black uppercase tracking-widest text-gray-400">Quick Roles</span>
-          <div class="h-px flex-1 bg-gray-100 dark:bg-gray-700"></div>
-        </div>
-
-        <div class="grid grid-cols-2 gap-3">
-          <button
-            v-for="account in roleAccounts"
-            :key="account.email"
-            type="button"
-            :data-role="account.role"
-            :disabled="auth.loading"
-            class="group flex min-h-20 flex-col items-center justify-center gap-1 rounded-xl border border-gray-100 p-3 text-center transition-all hover:border-primary-200 hover:bg-primary-50/40 disabled:cursor-wait disabled:opacity-60 dark:border-gray-700 dark:hover:bg-primary-900/10"
-            @click="handleRoleLogin(account)"
-          >
-            <span class="text-sm font-bold capitalize text-gray-900 group-hover:text-primary-600 dark:text-white">
-              {{ account.role }}
-            </span>
-            <span class="w-full truncate text-[9px] font-medium uppercase text-gray-400">
-              {{ account.email }}
-            </span>
-          </button>
-        </div>
       </div>
     </AppCard>
   </div>
@@ -109,23 +84,6 @@ const errors = reactive({
   password: '',
 })
 const rememberMe = ref(Boolean(localStorage.getItem('remembered_login_email')))
-
-const roleAccounts = [
-  { role: 'superadmin', email: 'superadmin@platform.test', password: 'test123' },
-  { role: 'admin', email: 'admin@school.test', password: 'test123' },
-  { role: 'accountant', email: 'accountant@school.test', password: 'test123' },
-  { role: 'teacher', email: 'teacher@school.test', password: 'test123' },
-  { role: 'receptionist', email: 'reception@school.test', password: 'test123' },
-  { role: 'student', email: 'student@school.test', password: 'test123' },
-  { role: 'parent', email: 'parent@school.test', password: 'test123' },
-  { role: 'hod', email: 'hod@school.test', password: 'test123' },
-] as const
-
-async function handleRoleLogin(account: (typeof roleAccounts)[number]) {
-  form.email = account.email
-  form.password = account.password
-  await submitLogin()
-}
 
 async function handleManualLogin() {
   await submitLogin()
@@ -159,6 +117,6 @@ async function submitLogin() {
 }
 
 function showForgotHelp() {
-  toast.info('For test accounts, use password: test123')
+  toast.info('Please contact your administrator to reset your password.')
 }
 </script>

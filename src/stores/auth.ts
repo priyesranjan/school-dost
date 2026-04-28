@@ -392,12 +392,9 @@ export const useAuthStore = defineStore('auth', () => {
     beginLogin,
     verifyLoginOtp,
     loginWithPassword,
-    loginAsDemoUser,
     resendOtp,
     setOtpChannel,
     clearPendingOtp,
-    login,
     logout,
-    demoUsers,
   }
 })
