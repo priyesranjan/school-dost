@@ -1,36 +1,17 @@
 services:
-  postgres:
-    image: postgres:16-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-erp}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-erp_dev_password_change_me}
-      POSTGRES_DB: ${POSTGRES_DB:-postgres}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./deploy/coolify/postgres-init:/docker-entrypoint-initdb.d:ro
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
     restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
     environment:
       NODE_ENV: production
       PORT: 8080
-      DATABASE_URL: postgresql://${POSTGRES_USER:-erp}:${POSTGRES_PASSWORD:-erp_dev_password_change_me}@postgres:5432/${TENANT_DB_NAME:-tenant_delhi_public_school}?schema=public
-      PLATFORM_DATABASE_URL: postgresql://${POSTGRES_USER:-erp}:${POSTGRES_PASSWORD:-erp_dev_password_change_me}@postgres:5432/${PLATFORM_DB_NAME:-erp_platform}?schema=public
-      PLATFORM_DB_ADMIN_URL: postgresql://${POSTGRES_USER:-erp}:${POSTGRES_PASSWORD:-erp_dev_password_change_me}@postgres:5432/postgres?schema=public
-      TENANT_DB_USER: ${POSTGRES_USER:-erp}
-      TENANT_DB_PASS: ${POSTGRES_PASSWORD:-erp_dev_password_change_me}
+      DATABASE_URL: ${DATABASE_URL}
+      PLATFORM_DATABASE_URL: ${PLATFORM_DATABASE_URL}
+      PLATFORM_DB_ADMIN_URL: ${PLATFORM_DB_ADMIN_URL}
+      TENANT_DB_USER: ${TENANT_DB_USER}
+      TENANT_DB_PASS: ${TENANT_DB_PASS}
       JWT_SECRET: ${JWT_SECRET:-replace-with-strong-secret-at-least-24-chars}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-replace-with-strong-refresh-secret-at-least-24-chars}
       AUDIT_SIGNING_SALT: ${AUDIT_SIGNING_SALT:-replace-with-strong-audit-salt-at-least-24-chars}
@@ -74,6 +55,3 @@ services:
         condition: service_started
     expose:
       - "80"
-
-volumes:
-  postgres_data:
