@@ -5,6 +5,28 @@ import { getOfflineMode } from '@/utils/runtimeConfig'
 
 const configuredBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim()
 
+function shouldDeriveTenantFromHostname(hostname: string): boolean {
+  const lower = hostname.toLowerCase()
+  if (lower === 'localhost' || lower === '127.0.0.1') return false
+  if (lower.endsWith('.sslip.io')) return false
+  if (/^\d+\.\d+\.\d+\.\d+$/.test(lower)) return false
+  return true
+}
+
+function resolveTenantSlug(): string {
+  const explicit = (localStorage.getItem('dev_tenant_slug') || import.meta.env.VITE_TENANT_SLUG || '').trim()
+  if (explicit) return explicit
+
+  const hostname = window.location.hostname
+  if (!shouldDeriveTenantFromHostname(hostname)) return ''
+
+  const parts = hostname.split('.')
+  if (parts.length < 3) return ''
+  const sub = parts[0].toLowerCase()
+  const reserved = new Set(['www', 'api', 'app', 'admin', 'superadmin', 'mail', 'smtp'])
+  return reserved.has(sub) ? '' : sub
+}
+
 const api = axios.create({
   baseURL: configuredBaseUrl || '/api',
   headers: {
@@ -23,11 +45,7 @@ api.interceptors.request.use((config) => {
   }
   // Multi-tenancy: send slug so backend resolves the correct tenant DB.
   // Production uses subdomain; dev/Postman uses this header fallback.
-  const slug = (() => {
-    const parts = window.location.hostname.split('.')
-    if (parts.length >= 3) return parts[0] // subdomain in prod
-    return localStorage.getItem('dev_tenant_slug') || import.meta.env.VITE_TENANT_SLUG || ''
-  })()
+  const slug = resolveTenantSlug()
   if (slug) config.headers['X-Tenant-Slug'] = slug
   return config
 })
