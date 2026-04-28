@@ -10,6 +10,28 @@ type SessionMetadata = {
   ip_address?: string | null
 }
 
+type RefreshSessionRow = {
+  id: bigint
+  name: string
+  role: string
+  email: string
+  createdAt: Date
+  expiresAt: Date
+  revokedAt: Date | null
+  sessionId?: string | null
+  userAgent?: string | null
+  ipAddress?: string | null
+  lastSeenAt?: Date | null
+}
+
+function isMissingColumnError(error: unknown) {
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    return error.code === 'P2022'
+  }
+  const message = error instanceof Error ? error.message : String(error)
+  return /column .* does not exist|unknown argument/i.test(message)
+}
+
 function hashToken(token: string) {
   return createHash('sha256').update(token).digest('hex')
 }
@@ -18,8 +40,9 @@ export async function issueRefreshToken(db: PrismaClient, claims: AuthClaims, me
   let timeoutHours = 7 * 24
   try {
     const policy = await getSecurityPolicyEnforcement(db)
-    if (policy && 'session_timeout_hours' in (policy as any) && Number((policy as any).session_timeout_hours) > 0) {
-      timeoutHours = Number((policy as any).session_timeout_hours)
+    const sessionTimeoutHours = Number((policy as Record<string, unknown> | null)?.session_timeout_hours)
+    if (Number.isFinite(sessionTimeoutHours) && sessionTimeoutHours > 0) {
+      timeoutHours = sessionTimeoutHours
     }
   } catch {}
   const expiresAt = new Date(Date.now() + timeoutHours * 60 * 60 * 1000)
@@ -27,20 +50,35 @@ export async function issueRefreshToken(db: PrismaClient, claims: AuthClaims, me
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const token = createRefreshToken(claims)
     try {
-      await db.refreshToken.create({
-        data: {
-          tokenHash: hashToken(token),
-          userSub: claims.sub,
-          name: claims.name,
-          role: claims.role,
-          email: claims.email,
-          sessionId: metadata?.session_id || null,
-          userAgent: metadata?.user_agent || null,
-          ipAddress: metadata?.ip_address || null,
-          lastSeenAt: new Date(),
-          expiresAt,
-        },
-      })
+      try {
+        await db.refreshToken.create({
+          data: {
+            tokenHash: hashToken(token),
+            userSub: claims.sub,
+            name: claims.name,
+            role: claims.role,
+            email: claims.email,
+            sessionId: metadata?.session_id || null,
+            userAgent: metadata?.user_agent || null,
+            ipAddress: metadata?.ip_address || null,
+            lastSeenAt: new Date(),
+            expiresAt,
+          },
+        })
+      } catch (error) {
+        // Backward compatibility for deployments still on old RefreshToken schema.
+        if (!isMissingColumnError(error)) throw error
+        await db.refreshToken.create({
+          data: {
+            tokenHash: hashToken(token),
+            userSub: claims.sub,
+            name: claims.name,
+            role: claims.role,
+            email: claims.email,
+            expiresAt,
+          },
+        })
+      }
       return token
     } catch (error) {
       const isUniqueViolation = error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002'
@@ -60,7 +98,7 @@ export async function rotateRefreshToken(db: PrismaClient, refreshToken: string,
   }
 
   const tokenHash = hashToken(refreshToken)
-  const stored = (await db.refreshToken.findUnique({ where: { tokenHash } })) as any
+  const stored = await db.refreshToken.findUnique({ where: { tokenHash } })
   if (!stored) {
     return { ok: false as const, code: 'INVALID_REFRESH_TOKEN', message: 'Refresh token is invalid or expired' }
   }
@@ -78,15 +116,23 @@ export async function rotateRefreshToken(db: PrismaClient, refreshToken: string,
     return { ok: false as const, code: 'INVALID_REFRESH_TOKEN', message: 'Refresh token is invalid or expired' }
   }
 
-  await db.refreshToken.update({
-    where: { tokenHash },
-    data: {
-      revokedAt: new Date(),
-      lastSeenAt: new Date(),
-      userAgent: metadata?.user_agent || stored.userAgent || null,
-      ipAddress: metadata?.ip_address || stored.ipAddress || null,
-    },
-  })
+  try {
+    await db.refreshToken.update({
+      where: { tokenHash },
+      data: {
+        revokedAt: new Date(),
+        lastSeenAt: new Date(),
+        userAgent: metadata?.user_agent || stored.userAgent || null,
+        ipAddress: metadata?.ip_address || stored.ipAddress || null,
+      },
+    })
+  } catch (error) {
+    if (!isMissingColumnError(error)) throw error
+    await db.refreshToken.update({
+      where: { tokenHash },
+      data: { revokedAt: new Date() },
+    })
+  }
 
   const claims: AuthClaims = {
     sub: decoded.sub,
@@ -132,26 +178,44 @@ export async function revokeAllRefreshTokensForUser(db: PrismaClient, userSub: s
 }
 
 export async function listRefreshSessionsForUser(db: PrismaClient, userSub: string) {
-  const rows = await db.refreshToken.findMany({
-    where: { userSub },
-    orderBy: { createdAt: 'desc' },
-    select: {
-      id: true,
-      name: true,
-      role: true,
-      email: true,
-      sessionId: true,
-      userAgent: true,
-      ipAddress: true,
-      lastSeenAt: true,
-      createdAt: true,
-      expiresAt: true,
-      revokedAt: true,
-    },
-  })
+  let rows: RefreshSessionRow[] = []
+  try {
+    rows = await db.refreshToken.findMany({
+      where: { userSub },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        name: true,
+        role: true,
+        email: true,
+        sessionId: true,
+        userAgent: true,
+        ipAddress: true,
+        lastSeenAt: true,
+        createdAt: true,
+        expiresAt: true,
+        revokedAt: true,
+      },
+    })
+  } catch (error) {
+    if (!isMissingColumnError(error)) throw error
+    rows = await db.refreshToken.findMany({
+      where: { userSub },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        name: true,
+        role: true,
+        email: true,
+        createdAt: true,
+        expiresAt: true,
+        revokedAt: true,
+      },
+    })
+  }
 
   return {
-    sessions: rows.map((row: any) => ({
+    sessions: rows.map((row) => ({
       id: String(row.id),
       name: row.name,
       role: row.role,
