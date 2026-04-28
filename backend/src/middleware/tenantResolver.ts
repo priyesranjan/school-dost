@@ -58,11 +58,11 @@ export function getTenantPrismaClient(dbName: string, dbHost: string, dbPort: nu
 // Supports both:
 //   1. Subdomain:  dps.yourerp.com  →  "dps"
 //   2. Header:     X-Tenant-Slug: dps  (for local dev / Postman)
-function extractSlug(req: Request): string | null {
+function extractSlug(req: Request): { slug: string; source: 'header' | 'host' } | null {
   // Header-based (dev / mobile clients)
   const headerSlug = req.headers['x-tenant-slug']
   if (headerSlug && typeof headerSlug === 'string') {
-    return headerSlug.toLowerCase().trim()
+    return { slug: headerSlug.toLowerCase().trim(), source: 'header' }
   }
 
   // Subdomain-based (production)
@@ -76,7 +76,7 @@ function extractSlug(req: Request): string | null {
     const sub = parts[0].toLowerCase()
     const platformSubs = ['www', 'api', 'app', 'admin', 'superadmin', 'mail', 'smtp']
     if (!platformSubs.includes(sub)) {
-      return sub
+      return { slug: sub, source: 'host' }
     }
   }
 
@@ -106,14 +106,15 @@ declare global {
 
 // ── The Middleware ────────────────────────────────────────────────────────────
 export async function resolveTenant(req: Request, res: Response, next: NextFunction) {
-  const slug = extractSlug(req)
+  const extracted = extractSlug(req)
 
-  if (!slug) {
+  if (!extracted) {
     // No tenant context — this is a platform-level request (health, superadmin, etc.)
     // We attach the platform DB as the tenantDb to support platform-level auth sessions.
     req.tenantDb = getPlatformPrisma() as any
     return next()
   }
+  const { slug, source } = extracted
 
   req.tenantSlug = slug
 
@@ -137,6 +138,13 @@ export async function resolveTenant(req: Request, res: Response, next: NextFunct
     })
 
     if (!tenant) {
+      // In managed hosts (Coolify/sslip/etc), the public host subdomain is often random
+      // and should not force tenant resolution. Keep strict behavior for explicit headers.
+      if (source === 'host') {
+        req.tenantSlug = undefined
+        req.tenantDb = getPlatformPrisma() as any
+        return next()
+      }
       res.status(404).json({
         error: {
           code: 'TENANT_NOT_FOUND',
