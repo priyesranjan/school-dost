@@ -72,8 +72,8 @@ services:
     depends_on:
       backend:
         condition: service_started
-    ports:
-      - "${FRONTEND_PORT:-8888}:80"
+    expose:
+      - "80"
 
 volumes:
   postgres_data:
